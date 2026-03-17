@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Desktop_Commander__start_process",
+      "WebFetch(domain:www.engsoc.queensu.ca)",
+      "Bash(pnpm add:*)",
+      "Bash(pnpm build:*)"
+    ]
+  }
+}
