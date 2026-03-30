@@ -8,6 +8,7 @@ import Inventory from "./pages/Inventory";
 import Students from "./pages/Students";
 import History from "./pages/History";
 import Logs from "./pages/Logs";
+import Analytics from "./pages/Analytics";
 
 export default function App() {
   return (
@@ -22,6 +23,7 @@ export default function App() {
             <Route path="/students" element={<Students />} />
             <Route path="/history" element={<History />} />
             <Route path="/logs" element={<Logs />} />
+            <Route path="/analytics" element={<Analytics />} />
           </Route>
         </Routes>
       </BrowserRouter>

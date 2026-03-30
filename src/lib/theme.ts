@@ -27,9 +27,14 @@ export function setTheme(theme: Theme) {
 }
 
 export function applyTheme(theme: Theme) {
+  const doc = document.documentElement;
+  // add transition class for smooth theme switch
+  doc.classList.add("theme-transition");
   if (theme === "dark") {
-    document.documentElement.classList.add("dark");
+    doc.classList.add("dark");
   } else {
-    document.documentElement.classList.remove("dark");
+    doc.classList.remove("dark");
   }
+  // remove transition class after animation completes
+  setTimeout(() => doc.classList.remove("theme-transition"), 450);
 }

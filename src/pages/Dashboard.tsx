@@ -1,11 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
-import { Package, Users, ScanLine, AlertCircle, ArrowRight, Search } from "lucide-react";
+import { Package, Users, ScanLine, AlertCircle, ArrowRight, Search, RefreshCw, Inbox } from "lucide-react";
 import { getAllLoans, getAllHardware, getAllUsers } from "../lib/api";
 import type { Loan, Hardware, User } from "../types";
 import StatusBadge from "../components/StatusBadge";
 import TableSkeleton from "../components/TableSkeleton";
 import StatSkeleton from "../components/StatSkeleton";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
+import Pagination, { paginate } from "../components/Pagination";
+import EmptyState from "../components/EmptyState";
 import { Input } from "@/components/ui/input";
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
@@ -19,12 +22,11 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     try {
       const [loanData, hwData, userData] = await Promise.all([
         getAllLoans(),
@@ -34,26 +36,39 @@ export default function Dashboard() {
       setLoans(loanData);
       setHardware(hwData);
       setUsers(userData);
+      setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+
+  const refresh = useAutoRefresh(loadData);
+
+  async function handleManualRefresh() {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
   }
 
+  const hardwareMap = new Map(hardware.map((h) => [h.asset_tag, h.name]));
   const activeLoans = loans.filter((l) => !l.returned_at);
   const availableItems = hardware.filter((h) => h.available).length;
   const totalItems = hardware.length;
   const totalStudents = users.length;
 
-  // filter active loans by search
   const filteredLoans = activeLoans.filter((loan) => {
     if (!search) return true;
     const term = search.toLowerCase();
+    const itemName = hardwareMap.get(loan.asset_tag)?.toLowerCase() || "";
     return (
       loan.net_id.toLowerCase().includes(term) ||
       loan.asset_tag.toLowerCase().includes(term) ||
-      loan.loan_id.toLowerCase().includes(term)
+      loan.loan_id.toLowerCase().includes(term) ||
+      itemName.includes(term)
     );
   });
 
@@ -151,10 +166,10 @@ export default function Dashboard() {
           <h3 className="text-lg font-semibold">Active Loans</h3>
           <div className="flex items-center gap-3">
             <div className="relative w-full sm:w-64">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground search-icon" />
               <Input
                 value={search}
-                onChange={(e) => setSearch(e.target.value)}
+                onChange={(e) => { setSearch(e.target.value); setPage(1); }}
                 placeholder="Search active loans..."
                 className="h-9 pl-9 rounded-xl glass-card border-0"
               />
@@ -165,16 +180,23 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <p className="text-xs text-muted-foreground mb-3">
-          Showing {filteredLoans.length} of {activeLoans.length} active loans
-        </p>
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mb-3">
+          <span>Showing {filteredLoans.length} of {activeLoans.length} active loans</span>
+          <button
+            onClick={handleManualRefresh}
+            className="inline-flex items-center p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+            title="Refresh data"
+          >
+            <RefreshCw className={cn("h-3 w-3", refreshing && "animate-spin")} />
+          </button>
+        </div>
 
         {loading ? <TableSkeleton rows={4} cols={5} /> : filteredLoans.length === 0 ? (
-          <div className="glass-card rounded-2xl p-8 text-center">
-            <p className="text-sm text-muted-foreground">
-              {search ? "No active loans match your search." : "No active loans right now."}
-            </p>
-          </div>
+          <EmptyState
+            icon={Inbox}
+            title={search ? "No matches found" : "All clear"}
+            description={search ? "No active loans match your search." : "No active loans right now. All equipment is available."}
+          />
         ) : (
           <div className="glass-card rounded-2xl overflow-hidden">
             <Table>
@@ -182,17 +204,20 @@ export default function Dashboard() {
                 <TableRow className="hover:bg-transparent border-b border-border/50">
                   <TableHead className="px-5">Loan ID</TableHead>
                   <TableHead className="px-5">Student</TableHead>
-                  <TableHead className="px-5">Asset Tag</TableHead>
+                  <TableHead className="px-5">Item (Asset Tag)</TableHead>
                   <TableHead className="px-5">Checked Out</TableHead>
                   <TableHead className="px-5">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredLoans.slice(0, 10).map((loan) => (
+                {paginate(filteredLoans, page, pageSize).map((loan) => (
                   <TableRow key={loan.id} className="border-b border-border/30 hover:bg-accent/50 transition-colors">
                     <TableCell className="px-5 font-mono text-xs">{loan.loan_id}</TableCell>
                     <TableCell className="px-5">{loan.net_id}</TableCell>
-                    <TableCell className="px-5 font-mono text-xs">{loan.asset_tag}</TableCell>
+                    <TableCell className="px-5">
+                      <span className="text-sm">{hardwareMap.get(loan.asset_tag) || "Unknown"}</span>
+                      <span className="ml-1.5 font-mono text-xs text-muted-foreground">({loan.asset_tag})</span>
+                    </TableCell>
                     <TableCell className="px-5 text-muted-foreground">
                       {new Date(loan.rented_at).toLocaleString()}
                     </TableCell>
@@ -201,6 +226,7 @@ export default function Dashboard() {
                 ))}
               </TableBody>
             </Table>
+            <Pagination totalItems={filteredLoans.length} pageSize={pageSize} currentPage={page} onPageChange={setPage} onPageSizeChange={setPageSize} />
           </div>
         )}
       </div>

@@ -1,9 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { CheckCircle, AlertCircle, RotateCcw } from "lucide-react";
 import ScanInput from "../components/ScanInput";
-import { createLoan } from "../lib/api";
+import { createLoan, getAllLoans, getAllHardware } from "../lib/api";
 import { sanitizeInput } from "../lib/sanitize";
-import type { Loan } from "../types";
+import type { Loan, Hardware } from "../types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -16,6 +16,15 @@ export default function Checkout() {
   const [result, setResult] = useState<Loan | null>(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [hardware, setHardware] = useState<Hardware[]>([]);
+
+  useEffect(() => {
+    getAllHardware().then((items: Hardware[]) => setHardware(items)).catch(() => {});
+  }, []);
+
+  const matchedItem = hardware.find(
+    (h) => h.asset_tag.toLowerCase() === assetTag.trim().toLowerCase()
+  );
 
   function handleStudentScan() {
     if (!netId.trim()) return;
@@ -33,6 +42,15 @@ export default function Checkout() {
     setSubmitting(true);
     setError("");
     try {
+      const activeLoans: Loan[] = await getAllLoans(true);
+      const alreadyCheckedOut = activeLoans.some(
+        (l) => l.asset_tag.toLowerCase() === assetTag.trim().toLowerCase()
+      );
+      if (alreadyCheckedOut) {
+        setError("This item is already checked out");
+        setSubmitting(false);
+        return;
+      }
       const loan = await createLoan(sanitizeInput(netId.trim()), sanitizeInput(assetTag.trim()));
       setResult(loan);
       setStep("done");
@@ -130,6 +148,12 @@ export default function Checkout() {
                 <span className="text-muted-foreground">Asset Tag</span>
                 <span className="font-mono font-medium">{assetTag}</span>
               </div>
+              {matchedItem && (
+                <div className="flex justify-between rounded-lg bg-muted px-4 py-2.5 text-sm">
+                  <span className="text-muted-foreground">Item Name</span>
+                  <span className="font-medium">{matchedItem.name}</span>
+                </div>
+              )}
             </div>
             <div className="flex gap-3">
               <Button variant="outline" onClick={() => setStep("equipment")} className="rounded-xl">Back</Button>

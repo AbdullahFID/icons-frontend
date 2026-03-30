@@ -1,98 +1,190 @@
-import { useEffect, useState } from "react";
-import { AlertCircle, CheckCircle, Search } from "lucide-react";
-import { getAllLoans, completeLoan } from "../lib/api";
-import type { Loan } from "../types";
+import { useEffect, useState, useCallback, useRef } from "react";
+import { AlertCircle, RefreshCw, ScanLine, CheckCircle, Package, ScanBarcode } from "lucide-react";
+import { getAllLoans, completeLoan, getAllHardware } from "../lib/api";
+import ScanInput from "../components/ScanInput";
+import type { Loan, Hardware } from "../types";
 import StatusBadge from "../components/StatusBadge";
 import TableSkeleton from "../components/TableSkeleton";
 import { useToast } from "@/components/ui/toast";
 import { addOperation, resolveOperation } from "@/lib/operationQueue";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
 } from "@/components/ui/table";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
+
+type ReturnStep = "scan" | "select" | "done";
 
 export default function Return() {
   const [loans, setLoans] = useState<Loan[]>([]);
+  const [hardware, setHardware] = useState<Hardware[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [search, setSearch] = useState("");
-  const [returning, setReturning] = useState<string | null>(null);
-  const [confirmLoan, setConfirmLoan] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
   const { addToast, updateToast } = useToast();
 
-  useEffect(() => {
-    loadLoans();
-  }, []);
+  // barcode scanner flow
+  const [step, setStep] = useState<ReturnStep>("scan");
+  const [scanInput, setScanInput] = useState("");
+  const [studentId, setStudentId] = useState("");
+  const [studentLoans, setStudentLoans] = useState<Loan[]>([]);
 
-  async function loadLoans() {
+  // asset tag quick-return scan
+  const [assetScanInput, setAssetScanInput] = useState("");
+  const [assetReturnLoan, setAssetReturnLoan] = useState<Loan | null>(null);
+
+  // confirmation
+  const [confirmLoan, setConfirmLoan] = useState<Loan | null>(null);
+  const [returning, setReturning] = useState<string | null>(null);
+  const inFlightReturns = useRef(new Set<string>());
+
+  // hardware lookup map
+  const hwMap = useRef(new Map<string, Hardware>());
+  useEffect(() => {
+    const map = new Map<string, Hardware>();
+    hardware.forEach((h) => map.set(h.asset_tag, h));
+    hwMap.current = map;
+  }, [hardware]);
+
+  function getItemName(assetTag: string): string {
+    return hwMap.current.get(assetTag)?.name || assetTag;
+  }
+
+  const loadData = useCallback(async () => {
     try {
-      const data = await getAllLoans(true);
-      setLoans(data);
+      const [loanData, hwData] = await Promise.all([
+        getAllLoans(true),
+        getAllHardware(),
+      ]);
+      setLoans(loanData);
+      setHardware(hwData);
+      setError("");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to load loans");
+      setError(err instanceof Error ? err.message : "Failed to load data");
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => { loadData(); }, [loadData]);
+  useAutoRefresh(loadData);
+
+  async function handleManualRefresh() {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
   }
 
-  async function handleReturn(loanId: string) {
+  function handleScan() {
+    if (!scanInput.trim()) return;
+    const id = scanInput.trim().toLowerCase();
+    setStudentId(scanInput.trim());
+
+    const found = loans.filter((l) => l.net_id.toLowerCase() === id);
+    if (found.length === 0) {
+      setError(`No active loans found for student "${scanInput.trim()}"`);
+      return;
+    }
+
+    setStudentLoans(found);
+    setError("");
+    setStep("select");
+  }
+
+  function handleAssetScan() {
+    if (!assetScanInput.trim()) return;
+    const tag = assetScanInput.trim().toLowerCase();
+    const found = loans.find((l) => l.asset_tag.toLowerCase() === tag);
+    if (!found) {
+      setError(`No active loan found for asset tag "${assetScanInput.trim()}"`);
+      return;
+    }
+    setError("");
+    setAssetReturnLoan(found);
+  }
+
+  function handleReset() {
+    setStep("scan");
+    setScanInput("");
+    setStudentId("");
+    setStudentLoans([]);
+    setError("");
+  }
+
+  async function handleReturn(loan: Loan) {
+    const loanId = loan.loan_id;
+    if (inFlightReturns.current.has(loanId)) return;
+    inFlightReturns.current.add(loanId);
+
     setReturning(loanId);
     setError("");
     setConfirmLoan(null);
+    setAssetReturnLoan(null);
 
-    const loan = loans.find((l) => l.loan_id === loanId);
-    const detail = loan ? `${loan.net_id} — ${loan.asset_tag}` : loanId;
+    const itemName = getItemName(loan.asset_tag);
+    const detail = `${loan.net_id} — ${itemName} (${loan.asset_tag})`;
 
-    // optimistic: remove from active list immediately
+    // optimistic remove
     setLoans((prev) => prev.filter((l) => l.loan_id !== loanId));
+    setStudentLoans((prev) => {
+      const next = prev.filter((l) => l.loan_id !== loanId);
+      if (next.length === 0) setTimeout(() => setStep("done"), 300);
+      return next;
+    });
 
     const opId = addOperation("Return Loan", detail, "Staff");
-    const toastId = addToast(`Queued return: ${detail}`, "loading");
+    const toastId = addToast(`Returning: ${itemName}`, "loading");
 
     try {
       await completeLoan(loanId);
       resolveOperation(opId, "success");
-      updateToast(toastId, `Returned: ${detail}`, "success");
+      updateToast(toastId, `Returned: ${itemName}`, "success");
+      setAssetScanInput("");
     } catch (err) {
-      // rollback
-      if (loan) setLoans((prev) => [...prev, loan]);
+      setLoans((prev) => [...prev, loan]);
+      setStudentLoans((prev) => [...prev, loan]);
+      if (step === "done") setStep("select");
       const msg = err instanceof Error ? err.message : "Return failed";
       resolveOperation(opId, "failed", msg);
-      updateToast(toastId, `Failed to return: ${detail}`, "error");
+      updateToast(toastId, `Failed: ${itemName}`, "error");
       setError(msg);
     } finally {
       setReturning(null);
+      inFlightReturns.current.delete(loanId);
     }
   }
 
-  const filtered = loans.filter((l) => {
-    if (!search) return true;
-    const term = search.toLowerCase();
-    return l.net_id.toLowerCase().includes(term) || l.asset_tag.toLowerCase().includes(term) || l.loan_id.toLowerCase().includes(term);
-  });
+  const stepIndex = step === "scan" ? 0 : step === "select" ? 1 : 2;
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold gradient-text">Return</h2>
+          <h2 className="text-2xl font-bold gradient-text">Return Equipment</h2>
           <p className="text-sm text-muted-foreground mt-1">
-            Find an active loan and mark it as returned.
+            Scan a student ID or an item's asset tag to process returns.
           </p>
         </div>
-        <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by student, asset tag, or loan ID..."
-            className="h-9 pl-9 rounded-xl glass-card border-0"
-          />
-        </div>
+        <button onClick={handleManualRefresh} className="p-2 rounded-xl hover:bg-accent transition-colors text-muted-foreground hover:text-foreground" title="Refresh">
+          <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
+        </button>
+      </div>
+
+      {/* step indicator */}
+      <div className="flex items-center gap-3">
+        {["Scan Student", "Select Items", "Complete"].map((label, i) => (
+          <div key={label} className="flex items-center gap-3">
+            {i > 0 && <div className={cn("h-px w-8 transition-colors", i <= stepIndex ? "bg-primary" : "bg-border")} />}
+            <div className="flex items-center gap-2">
+              <div className={cn("h-7 w-7 rounded-full flex items-center justify-center text-xs font-medium transition-all", i <= stepIndex ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-muted-foreground")}>{i + 1}</div>
+              <span className={cn("text-sm font-medium transition-colors hidden sm:inline", i <= stepIndex ? "text-foreground" : "text-muted-foreground")}>{label}</span>
+            </div>
+          </div>
+        ))}
       </div>
 
       {error && (
@@ -101,58 +193,175 @@ export default function Return() {
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        Showing {filtered.length} active loan{filtered.length !== 1 ? "s" : ""}
-      </p>
+      {loading ? <TableSkeleton rows={4} cols={5} /> : (
+        <>
+          {step === "scan" && (
+            <div className="space-y-4">
+              {/* Scan student ID */}
+              <div className="glass-card rounded-2xl p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl p-2.5 bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
+                    <ScanLine size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold">Scan Student ID</h3>
+                    <p className="text-sm text-muted-foreground">Scan the barcode on the student's ID card or type their Net ID</p>
+                  </div>
+                </div>
+                <ScanInput value={scanInput} onChange={setScanInput} onSubmit={handleScan} placeholder="Scan student ID barcode or type Net ID..." />
+                <Button onClick={handleScan} disabled={!scanInput.trim()} className="rounded-xl">Look Up Student</Button>
+              </div>
 
-      {loading ? (
-        <TableSkeleton rows={4} cols={6} />
-      ) : filtered.length === 0 ? (
-        <div className="glass-card rounded-2xl p-8 text-center">
-          <p className="text-sm text-muted-foreground">{search ? "No loans match your search." : "No active loans."}</p>
-        </div>
-      ) : (
-        <div className="glass-card rounded-2xl overflow-hidden">
-          <Table>
-            <TableHeader>
-              <TableRow className="hover:bg-transparent border-b border-border/50">
-                <TableHead className="px-5">Loan ID</TableHead>
-                <TableHead className="px-5">Student</TableHead>
-                <TableHead className="px-5">Asset Tag</TableHead>
-                <TableHead className="px-5">Checked Out</TableHead>
-                <TableHead className="px-5">Status</TableHead>
-                <TableHead className="px-5 text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filtered.map((loan) => (
-                <TableRow key={loan.id} className="border-b border-border/30 hover:bg-accent/50 transition-colors">
-                  <TableCell className="px-5 font-mono text-xs">{loan.loan_id}</TableCell>
-                  <TableCell className="px-5">{loan.net_id}</TableCell>
-                  <TableCell className="px-5 font-mono text-xs">{loan.asset_tag}</TableCell>
-                  <TableCell className="px-5 text-muted-foreground">{new Date(loan.rented_at).toLocaleString()}</TableCell>
-                  <TableCell className="px-5"><StatusBadge variant="checked-out" /></TableCell>
-                  <TableCell className="px-5 text-right">
-                    <Button size="sm" onClick={() => setConfirmLoan(loan.loan_id)} disabled={returning === loan.loan_id} className="rounded-lg text-xs hover:scale-[1.03] transition-transform">
-                      {returning === loan.loan_id ? "Returning..." : "Return"}
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
+              {/* Quick return by asset tag */}
+              <div className="glass-card rounded-2xl p-6 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl p-2.5 bg-gradient-to-br from-emerald-500 to-teal-600 text-white">
+                    <ScanBarcode size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-semibold">Quick Return by Asset Tag</h3>
+                    <p className="text-sm text-muted-foreground">Scan the item's barcode directly to return it</p>
+                  </div>
+                </div>
+                <ScanInput value={assetScanInput} onChange={setAssetScanInput} onSubmit={handleAssetScan} placeholder="Scan asset tag barcode..." />
+                <Button onClick={handleAssetScan} disabled={!assetScanInput.trim()} variant="outline" className="rounded-xl">Look Up Item</Button>
+              </div>
+            </div>
+          )}
+
+          {step === "select" && (
+            <div className="space-y-4">
+              <div className="glass-card rounded-2xl p-4 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl p-2 bg-gradient-to-br from-amber-500 to-orange-600 text-white"><Package size={18} /></div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Returning for</p>
+                    <p className="font-semibold">{studentId}</p>
+                  </div>
+                </div>
+                <Button variant="outline" size="sm" onClick={handleReset} className="rounded-lg text-xs">Change Student</Button>
+              </div>
+
+              <p className="text-xs text-muted-foreground">{studentLoans.length} item{studentLoans.length !== 1 ? "s" : ""} checked out</p>
+
+              {studentLoans.length === 0 ? (
+                <div className="glass-card rounded-2xl p-8 text-center space-y-3">
+                  <CheckCircle className="mx-auto h-10 w-10 text-emerald-500" />
+                  <p className="text-sm text-muted-foreground">All items have been returned!</p>
+                  <Button onClick={handleReset} className="rounded-xl">Scan Another Student</Button>
+                </div>
+              ) : (
+                <div className="glass-card rounded-2xl overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent border-b border-border/50">
+                        <TableHead className="px-5">Item</TableHead>
+                        <TableHead className="px-5">Asset Tag</TableHead>
+                        <TableHead className="px-5">Checked Out</TableHead>
+                        <TableHead className="px-5">Status</TableHead>
+                        <TableHead className="px-5 text-right">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {studentLoans.map((loan) => (
+                        <TableRow key={loan.id} className="border-b border-border/30 hover:bg-accent/50 transition-colors">
+                          <TableCell className="px-5 font-medium">{getItemName(loan.asset_tag)}</TableCell>
+                          <TableCell className="px-5 font-mono text-xs">{loan.asset_tag}</TableCell>
+                          <TableCell className="px-5 text-muted-foreground text-sm">{new Date(loan.rented_at).toLocaleString()}</TableCell>
+                          <TableCell className="px-5"><StatusBadge variant="checked-out" /></TableCell>
+                          <TableCell className="px-5 text-right">
+                            <Button size="sm" onClick={() => setConfirmLoan(loan)} disabled={returning === loan.loan_id} className="rounded-lg text-xs hover:scale-[1.03] transition-transform">
+                              {returning === loan.loan_id ? "Returning..." : "Return"}
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {step === "done" && (
+            <div className="glass-card rounded-2xl p-8 text-center space-y-4">
+              <div className="inline-flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+                <CheckCircle className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+              </div>
+              <div>
+                <h3 className="text-lg font-semibold">All Returns Complete</h3>
+                <p className="text-sm text-muted-foreground mt-1">All items for <span className="font-medium">{studentId}</span> have been returned.</p>
+              </div>
+              <Button onClick={handleReset} className="rounded-xl">Scan Another Student</Button>
+            </div>
+          )}
+        </>
       )}
 
+      {/* Confirm return modal (from student flow) */}
       <Dialog open={!!confirmLoan} onOpenChange={() => setConfirmLoan(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Confirm Return</DialogTitle>
-            <DialogDescription>Mark loan <span className="font-mono">{confirmLoan}</span> as returned?</DialogDescription>
+            <DialogDescription>Please verify the return details below.</DialogDescription>
           </DialogHeader>
+          {confirmLoan && (
+            <div className="space-y-2 py-2">
+              <div className="flex justify-between rounded-lg bg-muted px-4 py-2.5 text-sm">
+                <span className="text-muted-foreground">Student</span>
+                <span className="font-medium">{confirmLoan.net_id}</span>
+              </div>
+              <div className="flex justify-between rounded-lg bg-muted px-4 py-2.5 text-sm">
+                <span className="text-muted-foreground">Item</span>
+                <span className="font-medium">{getItemName(confirmLoan.asset_tag)}</span>
+              </div>
+              <div className="flex justify-between rounded-lg bg-muted px-4 py-2.5 text-sm">
+                <span className="text-muted-foreground">Asset Tag</span>
+                <span className="font-mono font-medium">{confirmLoan.asset_tag}</span>
+              </div>
+              <div className="flex justify-between rounded-lg bg-muted px-4 py-2.5 text-sm">
+                <span className="text-muted-foreground">Checked Out</span>
+                <span>{new Date(confirmLoan.rented_at).toLocaleString()}</span>
+              </div>
+            </div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setConfirmLoan(null)}>Cancel</Button>
             <Button onClick={() => confirmLoan && handleReturn(confirmLoan)}>Confirm Return</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick return modal (from asset tag scan) */}
+      <Dialog open={!!assetReturnLoan} onOpenChange={() => setAssetReturnLoan(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Return Item</DialogTitle>
+            <DialogDescription>Confirm that you want to return this item.</DialogDescription>
+          </DialogHeader>
+          {assetReturnLoan && (
+            <div className="space-y-2 py-2">
+              <div className="flex justify-between rounded-lg bg-muted px-4 py-2.5 text-sm">
+                <span className="text-muted-foreground">Item</span>
+                <span className="font-medium">{getItemName(assetReturnLoan.asset_tag)}</span>
+              </div>
+              <div className="flex justify-between rounded-lg bg-muted px-4 py-2.5 text-sm">
+                <span className="text-muted-foreground">Asset Tag</span>
+                <span className="font-mono font-medium">{assetReturnLoan.asset_tag}</span>
+              </div>
+              <div className="flex justify-between rounded-lg bg-muted px-4 py-2.5 text-sm">
+                <span className="text-muted-foreground">Checked Out By</span>
+                <span className="font-medium">{assetReturnLoan.net_id}</span>
+              </div>
+              <div className="flex justify-between rounded-lg bg-muted px-4 py-2.5 text-sm">
+                <span className="text-muted-foreground">Checked Out</span>
+                <span>{new Date(assetReturnLoan.rented_at).toLocaleString()}</span>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAssetReturnLoan(null)}>Cancel</Button>
+            <Button onClick={() => assetReturnLoan && handleReturn(assetReturnLoan)}>Confirm Return</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

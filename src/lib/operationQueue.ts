@@ -11,6 +11,7 @@ export interface Operation {
   status: OpStatus;
   timestamp: string;
   errorMessage?: string;
+  undoFn?: () => void;  // optional undo callback
 }
 
 // in-memory log of operations (persists for session)
@@ -42,7 +43,7 @@ export function clearUnreadFailures() {
   notifyFailureListeners();
 }
 
-export function addOperation(action: string, detail: string, performedBy = "Staff"): string {
+export function addOperation(action: string, detail: string, performedBy = "Staff", undoFn?: () => void): string {
   const id = `op-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
   const op: Operation = {
     id,
@@ -51,6 +52,7 @@ export function addOperation(action: string, detail: string, performedBy = "Staf
     performedBy,
     status: "queued",
     timestamp: new Date().toISOString(),
+    undoFn,
   };
   operations.unshift(op);
   notifyListeners();
@@ -66,6 +68,14 @@ export function resolveOperation(id: string, status: "success" | "failed", error
     unreadFailures++;
     notifyFailureListeners();
   }
+  notifyListeners();
+}
+
+export function undoOperation(id: string) {
+  const op = operations.find((o) => o.id === id);
+  if (!op || !op.undoFn) return;
+  op.undoFn();
+  operations = operations.filter((o) => o.id !== id);
   notifyListeners();
 }
 

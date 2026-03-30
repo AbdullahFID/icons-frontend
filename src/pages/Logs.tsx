@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { Search, CheckCircle, XCircle, Loader2, Trash2 } from "lucide-react";
-import { getOperations, onOperationsChange, type Operation } from "../lib/operationQueue";
+import { Search, CheckCircle, XCircle, Loader2, ScrollText, Undo2 } from "lucide-react";
+import { getOperations, onOperationsChange, undoOperation, type Operation } from "../lib/operationQueue";
+import Pagination, { paginate } from "../components/Pagination";
+import EmptyState from "../components/EmptyState";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,6 +13,8 @@ import { cn } from "@/lib/utils";
 export default function Logs() {
   const [ops, setOps] = useState<Operation[]>(getOperations());
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   useEffect(() => {
     return onOperationsChange(() => setOps(getOperations()));
@@ -57,10 +61,10 @@ export default function Logs() {
           </p>
         </div>
         <div className="relative w-full sm:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground search-icon" />
           <Input
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setPage(1); }}
             placeholder="Search logs..."
             className="h-9 pl-9 rounded-xl glass-card border-0"
           />
@@ -72,12 +76,11 @@ export default function Logs() {
       </p>
 
       {filtered.length === 0 ? (
-        <div className="glass-card rounded-2xl p-12 text-center">
-          <Trash2 className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-          <p className="text-sm text-muted-foreground">
-            {search ? "No operations match your search." : "No operations logged yet. Actions like removals and returns will appear here."}
-          </p>
-        </div>
+        <EmptyState
+          icon={ScrollText}
+          title={search ? "No matches found" : "No operations yet"}
+          description={search ? "No operations match your search." : "Actions like removals and returns will appear here."}
+        />
       ) : (
         <div className="glass-card rounded-2xl overflow-hidden">
           <Table>
@@ -89,10 +92,11 @@ export default function Logs() {
                 <TableHead className="px-5">Performed By</TableHead>
                 <TableHead className="px-5">Timestamp</TableHead>
                 <TableHead className="px-5">Error</TableHead>
+                <TableHead className="px-5">Undo</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((op) => (
+              {paginate(filtered, page, pageSize).map((op) => (
                 <TableRow key={op.id} className={cn(
                   "border-b border-border/30 transition-colors",
                   op.status === "failed" && "bg-red-50/50 dark:bg-red-950/20"
@@ -107,10 +111,24 @@ export default function Logs() {
                   <TableCell className="px-5 text-xs text-red-600 dark:text-red-400">
                     {op.errorMessage || "-"}
                   </TableCell>
+                  <TableCell className="px-5">
+                    {op.undoFn && op.status === "success" ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => undoOperation(op.id)}
+                      >
+                        <Undo2 className="h-3.5 w-3.5 mr-1" />
+                        Undo
+                      </Button>
+                    ) : "-"}
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+          <Pagination totalItems={filtered.length} pageSize={pageSize} currentPage={page} onPageChange={setPage} onPageSizeChange={setPageSize} />
         </div>
       )}
     </div>

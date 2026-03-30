@@ -61,6 +61,22 @@ body {
 
 table { table-layout: auto; }
 
+/* smooth theme transition */
+html.theme-transition,
+html.theme-transition *,
+html.theme-transition *::before,
+html.theme-transition *::after {
+  transition: background-color 0.4s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, fill 0.3s ease, stroke 0.3s ease !important;
+}
+
+/* theme toggle icon rotation */
+.theme-icon {
+  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.theme-icon-spin {
+  transform: rotate(360deg);
+}
+
 /* glassmorphism */
 @layer utilities {
   .glass {
@@ -86,6 +102,12 @@ table { table-layout: auto; }
     border-color: rgba(255,255,255,0.06);
     box-shadow: 0 1px 3px rgba(0,0,0,0.2);
   }
+}
+
+/* search icon z-index fix — backdrop-filter on glass-card creates stacking context */
+.search-icon {
+  z-index: 10;
+  pointer-events: none;
 }
 
 /* gradient mesh background — multi-gradient layered */
@@ -120,13 +142,6 @@ table { table-layout: auto; }
   background-clip: text;
 }
 
-/* page enter animation — no transform to prevent icon repositioning flash */
-.page-enter { animation: page-fade 0.3s ease-out; }
-@keyframes page-fade {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
-
 /* bottom nav transitions */
 .bottom-nav-pill {
   transition: transform 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease;
@@ -136,6 +151,35 @@ table { table-layout: auto; }
 /* sidebar transitions */
 .sidebar-transition { transition: width 0.3s cubic-bezier(0.4,0,0.2,1); }
 .sidebar-label { transition: opacity 0.2s ease, max-width 0.2s ease; overflow: hidden; white-space: nowrap; }
+
+/* animated empty states */
+.empty-state-icon {
+  animation: empty-bounce 1s cubic-bezier(0.4, 0, 0.2, 1) both;
+}
+.empty-state-text {
+  animation: empty-fade-up 0.6s ease both 0.15s;
+}
+.empty-state-text-delay {
+  animation: empty-fade-up 0.6s ease both 0.3s;
+}
+@keyframes empty-bounce {
+  0% { opacity: 0; transform: scale(0.5) translateY(10px); }
+  60% { opacity: 1; transform: scale(1.08) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes empty-fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* more menu backdrop */
+.more-backdrop {
+  animation: fade-in 0.2s ease;
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
 
 /* scrollbar styling */
 ::-webkit-scrollbar { width: 6px; }

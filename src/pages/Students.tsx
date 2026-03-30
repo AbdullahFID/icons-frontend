@@ -1,11 +1,15 @@
-import { useEffect, useState } from "react";
-import { Plus, Trash2, AlertCircle, Users, Search } from "lucide-react";
+import { useEffect, useState, useCallback } from "react";
+import { Plus, Trash2, AlertCircle, Users, Search, RefreshCw, Download } from "lucide-react";
 import { getAllUsers, addUser, removeUser } from "../lib/api";
 import { sanitizeInput, isValidName, isValidNetId, isValidStudentNumber } from "../lib/sanitize";
 import type { User } from "../types";
 import TableSkeleton from "../components/TableSkeleton";
 import { useToast } from "@/components/ui/toast";
 import { addOperation, resolveOperation } from "@/lib/operationQueue";
+import { useAutoRefresh } from "../hooks/useAutoRefresh";
+import Pagination, { paginate } from "../components/Pagination";
+import EmptyState from "../components/EmptyState";
+import { exportToCSV } from "../lib/csvExport";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -14,6 +18,7 @@ import {
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
 } from "@/components/ui/dialog";
+import { cn } from "@/lib/utils";
 
 export default function Students() {
   const [students, setStudents] = useState<User[]>([]);
@@ -26,21 +31,31 @@ export default function Students() {
   const [formStudentNum, setFormStudentNum] = useState("");
   const [adding, setAdding] = useState(false);
   const [deleteStudentNum, setDeleteStudentNum] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const { addToast, updateToast } = useToast();
 
-  useEffect(() => {
-    loadStudents();
-  }, []);
-
-  async function loadStudents() {
+  const loadStudents = useCallback(async () => {
     try {
       const data = await getAllUsers();
       setStudents(data);
+      setError("");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load students");
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => { loadStudents(); }, [loadStudents]);
+
+  const refresh = useAutoRefresh(loadStudents);
+
+  async function handleManualRefresh() {
+    setRefreshing(true);
+    await loadStudents();
+    setRefreshing(false);
   }
 
   async function handleAdd() {
@@ -48,6 +63,12 @@ export default function Students() {
     if (!isValidName(formName.trim())) { setError("Invalid name."); return; }
     if (!isValidNetId(formNetId.trim())) { setError("Invalid Net ID."); return; }
     if (!isValidStudentNumber(formStudentNum.trim())) { setError("Invalid student number (6-12 digits)."); return; }
+
+    // Check for duplicate net_id or student_number in local state
+    const duplicateNetId = students.find((s) => s.net_id.toLowerCase() === formNetId.trim().toLowerCase());
+    if (duplicateNetId) { setError("A student with this Net ID already exists."); return; }
+    const duplicateStudentNum = students.find((s) => s.student_number === formStudentNum.trim());
+    if (duplicateStudentNum) { setError("A student with this student number already exists."); return; }
 
     setAdding(true);
     setError("");
@@ -116,14 +137,18 @@ export default function Students() {
         </div>
         <div className="flex items-center gap-3">
           <div className="relative w-full sm:w-64">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground search-icon" />
             <Input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
               placeholder="Search students..."
               className="h-9 pl-9 rounded-xl glass-card border-0"
             />
           </div>
+          <Button variant="outline" size="icon" className="rounded-xl shrink-0" title="Export CSV"
+            onClick={() => exportToCSV("students", ["Name", "Net ID", "Student Number"], filtered.map((s) => [s.name, s.net_id, s.student_number]))}>
+            <Download size={15} />
+          </Button>
           <Button onClick={() => setShowForm(!showForm)} className="rounded-xl shrink-0 hover:scale-[1.02] transition-transform">
             <Plus size={16} />
             <span className="hidden sm:inline">Add Student</span>
@@ -157,19 +182,25 @@ export default function Students() {
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground flex items-center gap-1.5">
         Showing {filtered.length} of {students.length} students
+        <button
+          onClick={handleManualRefresh}
+          className="inline-flex items-center p-0.5 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+          title="Refresh data"
+        >
+          <RefreshCw className={cn("h-3 w-3", refreshing && "animate-spin")} />
+        </button>
       </p>
 
       {loading ? (
         <TableSkeleton rows={5} cols={4} />
       ) : filtered.length === 0 ? (
-        <div className="glass-card rounded-2xl p-12 text-center">
-          <Users className="mx-auto h-10 w-10 text-muted-foreground/30 mb-3" />
-          <p className="text-sm text-muted-foreground">
-            {search ? "No students match your search." : "No students registered yet."}
-          </p>
-        </div>
+        <EmptyState
+          icon={Users}
+          title={search ? "No matches found" : "No students yet"}
+          description={search ? "No students match your search." : "Register your first student to get started."}
+        />
       ) : (
         <div className="glass-card rounded-2xl overflow-hidden">
           <Table>
@@ -182,7 +213,7 @@ export default function Students() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filtered.map((student) => (
+              {paginate(filtered, page, pageSize).map((student) => (
                 <TableRow key={student.id} className="border-b border-border/30 hover:bg-accent/50 transition-colors">
                   <TableCell className="px-5 font-medium">{student.name}</TableCell>
                   <TableCell className="px-5">{student.net_id}</TableCell>
@@ -197,6 +228,7 @@ export default function Students() {
               ))}
             </TableBody>
           </Table>
+          <Pagination totalItems={filtered.length} pageSize={pageSize} currentPage={page} onPageChange={setPage} onPageSizeChange={setPageSize} />
         </div>
       )}
 
