@@ -1,20 +1,34 @@
-// simple fetch wrapper for all backend calls
-// base url is empty string since vite proxies /users, /hardware, /loans in dev
-// and in production everything is same-origin on the pi
+// ---------------------------------------------------------------------------
+// api.ts — thin wrapper around `fetch` for every backend call.
+//
+// The real backend is Kyle's FastAPI + Supabase service. In production it's
+// reached through a Cloudflare tunnel; for local dev Vite proxies /users,
+// /hardware, and /loans to http://localhost:8000 (see vite.config.ts).
+//
+// You swap the URL at build time by setting VITE_API_URL in a .env file,
+// or by leaving it unset to use the hardcoded fallback below. For the
+// Raspberry Pi demo, set VITE_API_URL="" so requests go to the same
+// origin (whatever server hosts the dist/ folder).
+// ---------------------------------------------------------------------------
 
 import { checkRateLimit, getRateLimitReset } from "./rateLimiter";
 import { isDevMode } from "./devMode";
 import { mockUsers, mockHardware, mockLoans, mockLoanDetail } from "./mockData";
 
-const BASE = "https://synthetic-before-zones-firewire.trycloudflare.com";
+// BASE is empty when hosted on the same origin as the backend (Pi/Flask demo),
+// otherwise it points at Kyle's tunneled FastAPI instance. `import.meta.env`
+// lets Vite inject a build-time value without rebuilding code.
+const BASE =
+  import.meta.env.VITE_API_URL ??
+  "https://synthetic-before-zones-firewire.trycloudflare.com";
 
 async function request(path: string, options?: RequestInit) {
-  // if dev mode is on, dont hit the real backend
+  // Dev mode short-circuits the network so we can demo without a backend.
   if (isDevMode()) {
     return handleMockRequest(path, options);
   }
 
-  // check rate limit before making the request
+  // Client-side throttle so a runaway loop can't hammer the backend.
   if (!checkRateLimit(path)) {
     const resetIn = getRateLimitReset(path);
     throw new Error(`Too many requests. Please wait ${resetIn}s before trying again.`);
@@ -26,6 +40,7 @@ async function request(path: string, options?: RequestInit) {
   });
 
   if (!res.ok) {
+    // FastAPI returns { detail: "..." } on errors; fall back to a generic message.
     const err = await res.json().catch(() => ({ detail: "Request failed" }));
     throw new Error(err.detail || `Error ${res.status}`);
   }
@@ -33,12 +48,14 @@ async function request(path: string, options?: RequestInit) {
   return res.json();
 }
 
-// mock request handler for dev mode
+// Mock-request handler: mirrors the real backend's response shape so the UI
+// doesn't know the difference. Mutates mockUsers/mockHardware/mockLoans in
+// place so the preview feels "live" within a single page session.
 function handleMockRequest(path: string, options?: RequestInit) {
-  // small delay to simulate network
   return new Promise((resolve) => {
+    // 300ms fake latency — makes loading states show up so we can demo them.
     setTimeout(() => {
-      // users
+      // --- users ---
       if (path === "/users/get_all_users") {
         resolve([...mockUsers]);
       } else if (path.startsWith("/users/retrieve_user/")) {
@@ -53,7 +70,7 @@ function handleMockRequest(path: string, options?: RequestInit) {
       } else if (path.startsWith("/users/remove_user/")) {
         resolve({ message: "User removed" });
 
-      // hardware
+      // --- hardware ---
       } else if (path.startsWith("/hardware/get_all_hardware")) {
         const availableOnly = path.includes("available_only=true");
         const items = availableOnly ? mockHardware.filter((h) => h.available) : [...mockHardware];
@@ -71,7 +88,7 @@ function handleMockRequest(path: string, options?: RequestInit) {
       } else if (path.startsWith("/hardware/delete_hardware/")) {
         resolve({ message: "Hardware removed" });
 
-      // loans
+      // --- loans ---
       } else if (path.startsWith("/loans/get_all_loans")) {
         const activeOnly = path.includes("active_only=true");
         const loans = activeOnly ? mockLoans.filter((l) => !l.returned_at) : [...mockLoans];
@@ -102,6 +119,11 @@ function handleMockRequest(path: string, options?: RequestInit) {
     }, 300);
   });
 }
+
+// ---------------------------------------------------------------------------
+// Public API. Each function maps 1:1 to a FastAPI route.
+// We keep these thin on purpose — all business logic lives on the backend.
+// ---------------------------------------------------------------------------
 
 // --- users ---
 

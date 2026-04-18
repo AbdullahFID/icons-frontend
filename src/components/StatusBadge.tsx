@@ -1,3 +1,7 @@
+// StatusBadge — tiny pill with a coloured dot + label. One of three variants:
+// available (green), checked-out (amber, pulses softly), returned (grey).
+// Override the text with `label` if you want a custom message.
+
 import { cn } from "@/lib/utils";
 
 interface StatusBadgeProps {
@@ -27,7 +31,8 @@ export default function StatusBadge({ variant, label }: StatusBadgeProps) {
         className={cn(
           "h-1.5 w-1.5 rounded-full",
           variant === "available" && "bg-emerald-500",
-          variant === "checked-out" && "bg-amber-500",
+          // Soft pulse so the eye is drawn to items that are currently out.
+          variant === "checked-out" && "bg-amber-500 animate-soft-pulse",
           variant === "returned" && "bg-slate-400"
         )}
       />

@@ -1,3 +1,11 @@
+// ---------------------------------------------------------------------------
+// Dashboard.tsx — the landing page at "/".
+//
+// Pulls three datasets in parallel (loans, hardware, users), derives a few
+// at-a-glance metrics, and shows a searchable table of active loans. Auto-
+// refreshes every 30 s via useAutoRefresh; also exposes a manual refresh.
+// ---------------------------------------------------------------------------
+
 import { useEffect, useState, useCallback } from "react";
 import { Link } from "react-router-dom";
 import { Package, Users, ScanLine, AlertCircle, ArrowRight, Search, RefreshCw, Inbox } from "lucide-react";
@@ -16,9 +24,11 @@ import {
 import { cn } from "@/lib/utils";
 
 export default function Dashboard() {
+  // Raw datasets from the backend.
   const [loans, setLoans] = useState<Loan[]>([]);
   const [hardware, setHardware] = useState<Hardware[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  // UI state.
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
@@ -26,6 +36,7 @@ export default function Dashboard() {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
 
+  // Fetch all three endpoints in parallel — Promise.all keeps total wait = slowest call.
   const loadData = useCallback(async () => {
     try {
       const [loanData, hwData, userData] = await Promise.all([
@@ -46,7 +57,8 @@ export default function Dashboard() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
-  const refresh = useAutoRefresh(loadData);
+  // 30 s silent background poll — keeps numbers fresh without spinners flashing.
+  useAutoRefresh(loadData);
 
   async function handleManualRefresh() {
     setRefreshing(true);
@@ -54,12 +66,16 @@ export default function Dashboard() {
     setRefreshing(false);
   }
 
+  // Map asset_tag → display name so the table can show "Oscilloscope" instead of a UUID.
   const hardwareMap = new Map(hardware.map((h) => [h.asset_tag, h.name]));
   const activeLoans = loans.filter((l) => !l.returned_at);
   const availableItems = hardware.filter((h) => h.available).length;
   const totalItems = hardware.length;
   const totalStudents = users.length;
+  // Utilization = how much of the inventory is currently out.
+  const utilizationPct = totalItems > 0 ? Math.round(((totalItems - availableItems) / totalItems) * 100) : 0;
 
+  // Live-filter active loans against the search box (case-insensitive, any field).
   const filteredLoans = activeLoans.filter((loan) => {
     if (!search) return true;
     const term = search.toLowerCase();
@@ -72,32 +88,37 @@ export default function Dashboard() {
     );
   });
 
+  // Stat card config — keeps JSX tidy and makes adding a fourth card trivial.
   const stats = [
     {
       label: "Active Loans",
       value: activeLoans.length,
+      hint: activeLoans.length === 1 ? "1 item checked out" : `${activeLoans.length} items checked out`,
       icon: ScanLine,
       gradient: "from-amber-500 to-orange-600",
-      bg: "bg-amber-50 dark:bg-amber-950/30",
+      ring: "ring-amber-500/20",
     },
     {
       label: "Available Items",
       value: `${availableItems} / ${totalItems}`,
+      hint: `${utilizationPct}% in use`,
       icon: Package,
       gradient: "from-emerald-500 to-teal-600",
-      bg: "bg-emerald-50 dark:bg-emerald-950/30",
+      ring: "ring-emerald-500/20",
     },
     {
       label: "Registered Students",
       value: totalStudents,
+      hint: totalStudents === 1 ? "1 account" : `${totalStudents} accounts`,
       icon: Users,
       gradient: "from-blue-500 to-indigo-600",
-      bg: "bg-blue-50 dark:bg-blue-950/30",
+      ring: "ring-blue-500/20",
     },
   ];
 
   return (
     <div className="space-y-8">
+      {/* Page header */}
       <div>
         <h2 className="text-2xl font-bold gradient-text">Dashboard</h2>
         <p className="text-sm text-muted-foreground mt-1">
@@ -111,17 +132,23 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* stat cards */}
+      {/* Stat cards — three colored tiles. `StatSkeleton` replaces them during the initial load. */}
       {loading ? <StatSkeleton /> : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           {stats.map((stat) => (
-            <div key={stat.label} className="glass-card rounded-2xl p-5 hover:shadow-lg hover:scale-[1.02] transition-all duration-200">
-              <div className="flex items-center justify-between">
-                <div>
+            <div
+              key={stat.label}
+              className="glass-card glass-card-interactive rounded-2xl p-5 relative overflow-hidden"
+            >
+              {/* Decorative blurred colour blob behind the icon — pure flourish. */}
+              <div className={cn("absolute -top-8 -right-8 h-24 w-24 rounded-full blur-2xl opacity-30 bg-gradient-to-br", stat.gradient)} aria-hidden="true" />
+              <div className="relative flex items-start justify-between">
+                <div className="min-w-0">
                   <p className="text-sm text-muted-foreground">{stat.label}</p>
-                  <p className="text-2xl font-semibold mt-1">{stat.value}</p>
+                  <p className="text-2xl font-semibold mt-1 tabular-nums">{stat.value}</p>
+                  <p className="text-[11px] text-muted-foreground/80 mt-1">{stat.hint}</p>
                 </div>
-                <div className={cn("rounded-xl p-2.5 bg-gradient-to-br text-white", stat.gradient)}>
+                <div className={cn("rounded-xl p-2.5 bg-gradient-to-br text-white shadow-sm ring-1", stat.gradient, stat.ring)}>
                   <stat.icon size={20} />
                 </div>
               </div>
@@ -130,41 +157,51 @@ export default function Dashboard() {
         </div>
       )}
 
-      {/* quick actions */}
+      {/* Quick action tiles — big, thumbable targets that lead to the two most common tasks. */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
         <Link
           to="/checkout"
-          className="glass-card rounded-2xl p-5 flex items-center justify-between group hover:shadow-lg hover:scale-[1.01] transition-all duration-200 relative overflow-hidden"
+          className="glass-card glass-card-interactive rounded-2xl p-5 flex items-center justify-between group relative overflow-hidden"
         >
           <div className="absolute inset-0 bg-gradient-to-r from-queens-blue/5 to-engsoc-purple/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className="relative">
-            <p className="font-medium">New Checkout</p>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Scan a student ID and equipment barcode
-            </p>
+          <div className="relative flex items-center gap-4">
+            <div className="rounded-xl p-2.5 bg-gradient-to-br from-queens-blue to-engsoc-purple text-white shadow-sm">
+              <ScanLine size={20} />
+            </div>
+            <div>
+              <p className="font-medium">New Checkout</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Scan a student ID and equipment barcode
+              </p>
+            </div>
           </div>
           <ArrowRight size={18} className="relative text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
         </Link>
         <Link
           to="/return"
-          className="glass-card rounded-2xl p-5 flex items-center justify-between group hover:shadow-lg hover:scale-[1.01] transition-all duration-200 relative overflow-hidden"
+          className="glass-card glass-card-interactive rounded-2xl p-5 flex items-center justify-between group relative overflow-hidden"
         >
-          <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-queens-gold/5 opacity-0 group-hover:opacity-100 transition-opacity" />
-          <div className="relative">
-            <p className="font-medium">Process Return</p>
-            <p className="text-sm text-muted-foreground mt-0.5">
-              Mark an active loan as returned
-            </p>
+          <div className="absolute inset-0 bg-gradient-to-r from-emerald-500/5 to-queens-gold/10 opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="relative flex items-center gap-4">
+            <div className="rounded-xl p-2.5 bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-sm">
+              <Package size={20} />
+            </div>
+            <div>
+              <p className="font-medium">Process Return</p>
+              <p className="text-sm text-muted-foreground mt-0.5">
+                Mark an active loan as returned
+              </p>
+            </div>
           </div>
           <ArrowRight size={18} className="relative text-muted-foreground group-hover:text-primary group-hover:translate-x-1 transition-all" />
         </Link>
       </div>
 
-      {/* active loans */}
+      {/* Active loans table */}
       <div>
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
           <h3 className="text-lg font-semibold">Active Loans</h3>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 w-full sm:w-auto">
             <div className="relative w-full sm:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground search-icon" />
               <Input
@@ -186,6 +223,7 @@ export default function Dashboard() {
             onClick={handleManualRefresh}
             className="inline-flex items-center p-1 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
             title="Refresh data"
+            aria-label="Refresh"
           >
             <RefreshCw className={cn("h-3 w-3", refreshing && "animate-spin")} />
           </button>

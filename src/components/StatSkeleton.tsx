@@ -1,3 +1,7 @@
+// StatSkeleton — three shimmering placeholder cards shown while the
+// Dashboard fetches its first payload. Skeleton screens beat spinners
+// because they preserve layout (no jank when data arrives).
+
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function StatSkeleton({ count = 3 }: { count?: number }) {

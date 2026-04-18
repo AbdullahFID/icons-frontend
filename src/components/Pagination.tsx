@@ -1,3 +1,7 @@
+// Pagination.tsx — page-size selector + prev/next buttons.
+// Hides itself entirely when the list fits on one page (totalItems <= 10).
+// The `paginate()` helper below is a pure function used by every table.
+
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";

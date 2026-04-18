@@ -1,3 +1,6 @@
+// TableSkeleton — placeholder rows shown while a table loads.
+// `rows` and `cols` let each page pick a shape that matches its real table.
+
 import { Skeleton } from "@/components/ui/skeleton";
 
 interface TableSkeletonProps {

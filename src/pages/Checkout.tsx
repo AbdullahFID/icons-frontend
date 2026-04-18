@@ -1,3 +1,13 @@
+// Checkout.tsx — four-step wizard for creating a new loan.
+//   step 1 "student"   → scan/enter the student's net ID
+//   step 2 "equipment" → scan/enter the item's asset tag
+//   step 3 "confirm"   → review both + hit Confirm (this is where the POST fires)
+//   step 4 "done"      → show the new loan ID and a "New Checkout" button
+//
+// Before hitting /loans/create_loan we re-fetch active loans and make sure
+// the same asset tag isn't already checked out — the backend enforces this
+// too, but the client check gives a friendlier error instantly.
+
 import { useState, useEffect } from "react";
 import { CheckCircle, AlertCircle, RotateCcw } from "lucide-react";
 import ScanInput from "../components/ScanInput";
@@ -78,22 +88,23 @@ export default function Checkout() {
         </p>
       </div>
 
-      {/* step indicator */}
-      <div className="flex items-center gap-3">
+      {/* Step indicator — label text hides below sm: so the three circles
+          always fit on an iPhone SE-width screen without overflow. */}
+      <div className="flex items-center gap-2 sm:gap-3">
         {["Student ID", "Equipment", "Confirm"].map((label, i) => {
           const stepIndex = ["student", "equipment", "confirm", "done"].indexOf(step);
           const isActive = i <= stepIndex;
           return (
-            <div key={label} className="flex items-center gap-3">
-              {i > 0 && <div className={cn("h-px w-8 transition-colors", isActive ? "bg-primary" : "bg-border")} />}
-              <div className="flex items-center gap-2">
+            <div key={label} className="flex items-center gap-2 sm:gap-3 min-w-0">
+              {i > 0 && <div className={cn("h-px w-5 sm:w-8 shrink-0 transition-colors", isActive ? "bg-primary" : "bg-border")} />}
+              <div className="flex items-center gap-2 min-w-0">
                 <div className={cn(
-                  "h-7 w-7 rounded-full flex items-center justify-center text-xs font-medium transition-all",
+                  "h-7 w-7 shrink-0 rounded-full flex items-center justify-center text-xs font-medium transition-all",
                   isActive ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-muted-foreground"
                 )}>
                   {i + 1}
                 </div>
-                <span className={cn("text-sm font-medium transition-colors", isActive ? "text-foreground" : "text-muted-foreground")}>
+                <span className={cn("text-sm font-medium transition-colors whitespace-nowrap hidden sm:inline", isActive ? "text-foreground" : "text-muted-foreground")}>
                   {label}
                 </span>
               </div>

@@ -1,3 +1,16 @@
+// Analytics.tsx — computed insights from the raw loan/hardware/user data.
+// Nothing here hits a dedicated "analytics" backend endpoint; every number
+// is derived client-side. If the dataset ever grows past a few thousand
+// loans we'd want to move these reductions server-side, but for EngSoc's
+// volume (tens/hundreds of loans) it's trivially fast in the browser.
+//
+// Widgets:
+//   • 4 summary tiles (totals, utilization, avg duration, active borrowers)
+//   • 7-day activity chart (stacked: checkouts vs returns, per day)
+//   • Utilization SVG gauge
+//   • Most-borrowed items leaderboard
+//   • Top borrowers leaderboard
+
 import { useEffect, useState, useCallback } from "react";
 import { AlertCircle, RefreshCw, TrendingUp, Package, Users, Calendar, Download } from "lucide-react";
 import { getAllLoans, getAllHardware, getAllUsers } from "../lib/api";

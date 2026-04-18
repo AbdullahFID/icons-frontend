@@ -1,3 +1,7 @@
+// App.tsx — top-level component that wires up routing and global providers.
+// Every page lives under <Layout /> so the sidebar/mobile nav is always visible.
+// <ToastProvider> hoists the toast context above the router so any page can fire toasts.
+
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ToastProvider } from "./components/ui/toast";
 import Layout from "./components/Layout";
@@ -15,6 +19,8 @@ export default function App() {
     <ToastProvider>
       <BrowserRouter>
         <Routes>
+          {/* Parent route renders <Layout /> which itself renders <Outlet />
+              for whichever child route matches the URL. */}
           <Route element={<Layout />}>
             <Route path="/" element={<Dashboard />} />
             <Route path="/checkout" element={<Checkout />} />

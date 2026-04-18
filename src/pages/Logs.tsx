@@ -1,3 +1,10 @@
+// Logs.tsx — timeline of every backend operation fired during this session.
+// Reads from the in-memory queue in src/lib/operationQueue.ts (not the
+// backend). Each row shows queued → success/failed status. Failures also
+// bump the red badge on the sidebar "Logs" link until the user opens this page.
+//
+// Operations with an `undoFn` attached (e.g. a removal) get an "Undo" button.
+
 import { useEffect, useState } from "react";
 import { Search, CheckCircle, XCircle, Loader2, ScrollText, Undo2 } from "lucide-react";
 import { getOperations, onOperationsChange, undoOperation, type Operation } from "../lib/operationQueue";

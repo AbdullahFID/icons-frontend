@@ -1,3 +1,17 @@
+/* ---------------------------------------------------------------------------
+   index.css — the one global stylesheet for the whole app.
+
+   Layers (in order Tailwind applies them):
+     1. @tailwind base       — Tailwind's CSS reset + sensible defaults
+     2. @tailwind components — reusable @apply-based class recipes
+     3. @tailwind utilities  — the huge pile of utility classes (mt-4, flex, …)
+
+   Everything under `:root` / `.dark` is a CSS variable. shadcn/ui components
+   read from these via `hsl(var(--primary))`, so flipping one variable
+   re-themes the whole app. The `.dark` class on <html> is toggled by
+   src/lib/theme.ts when the user hits the moon/sun button.
+   --------------------------------------------------------------------------- */
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -10,7 +24,7 @@
     --card-foreground: 215 28% 17%;
     --popover: 0 0% 100%;
     --popover-foreground: 215 28% 17%;
-    --primary: 218 100% 16%;
+    --primary: 218 100% 16%;          /* Queen's blue */
     --primary-foreground: 0 0% 100%;
     --secondary: 210 40% 96%;
     --secondary-foreground: 215 28% 17%;
@@ -18,7 +32,7 @@
     --muted-foreground: 215 16% 47%;
     --accent: 210 40% 96%;
     --accent-foreground: 215 28% 17%;
-    --destructive: 348 86% 39%;
+    --destructive: 348 86% 39%;       /* Queen's tricolour red */
     --destructive-foreground: 0 0% 100%;
     --border: 214 32% 91%;
     --input: 214 32% 91%;
@@ -32,7 +46,7 @@
     --card-foreground: 210 40% 95%;
     --popover: 222 47% 9%;
     --popover-foreground: 210 40% 95%;
-    --primary: 44 96% 52%;
+    --primary: 44 96% 52%;            /* Queen's gold pops in dark mode */
     --primary-foreground: 222 47% 6%;
     --secondary: 222 30% 14%;
     --secondary-foreground: 210 40% 85%;
@@ -51,6 +65,17 @@
 @layer base {
   * { @apply border-border; }
   body { @apply bg-background text-foreground; }
+
+  /* Consistent focus ring across every focusable element — keyboard users get
+     a clear primary-coloured outline and mouse clicks stay quiet. */
+  :focus-visible {
+    outline: 2px solid hsl(var(--ring) / 0.6);
+    outline-offset: 2px;
+    border-radius: 6px;
+  }
+
+  /* Headings should never flag text smoothing — keeps gradient text crisp. */
+  h1, h2, h3, h4 { letter-spacing: -0.01em; }
 }
 
 body {
@@ -61,7 +86,9 @@ body {
 
 table { table-layout: auto; }
 
-/* smooth theme transition */
+/* --- theme transition --------------------------------------------------- */
+/* Applied briefly when the user toggles dark/light so colours tween softly
+   instead of flashing. src/lib/theme.ts adds/removes `.theme-transition`. */
 html.theme-transition,
 html.theme-transition *,
 html.theme-transition *::before,
@@ -69,15 +96,13 @@ html.theme-transition *::after {
   transition: background-color 0.4s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, fill 0.3s ease, stroke 0.3s ease !important;
 }
 
-/* theme toggle icon rotation */
-.theme-icon {
-  transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-.theme-icon-spin {
-  transform: rotate(360deg);
-}
+/* Icon spins once when the user flips theme — small celebratory touch. */
+.theme-icon { transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
+.theme-icon-spin { transform: rotate(360deg); }
 
-/* glassmorphism */
+/* --- glassmorphism ------------------------------------------------------ */
+/* Translucent cards that pick up the mesh gradient behind them. Every "card"
+   in the UI (stats, tables, forms) uses one of these classes. */
 @layer utilities {
   .glass {
     background: rgba(255,255,255,0.72);
@@ -94,41 +119,61 @@ html.theme-transition *::after {
     backdrop-filter: blur(20px);
     -webkit-backdrop-filter: blur(20px);
     border: 1px solid rgba(255,255,255,0.45);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
-    transition: box-shadow 0.2s ease, transform 0.2s ease;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
+    transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
   }
   .dark .glass-card {
     background: rgba(12,20,40,0.5);
     border-color: rgba(255,255,255,0.06);
     box-shadow: 0 1px 3px rgba(0,0,0,0.2);
   }
+  /* `.glass-card-interactive` — opt-in lift for cards that are also links/buttons. */
+  .glass-card-interactive:hover {
+    box-shadow: 0 8px 24px rgba(0,36,82,0.08), 0 2px 6px rgba(0,0,0,0.04);
+    border-color: rgba(0,36,82,0.12);
+  }
+  .dark .glass-card-interactive:hover {
+    box-shadow: 0 8px 24px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.2);
+    border-color: rgba(250,189,15,0.18);
+  }
 }
 
-/* search icon z-index fix — backdrop-filter on glass-card creates stacking context */
+/* Search icon inside a glass-card — backdrop-filter creates a stacking
+   context which hides it unless we bump the z-index. */
 .search-icon {
   z-index: 10;
   pointer-events: none;
 }
 
-/* gradient mesh background — multi-gradient layered */
+/* --- gradient mesh background ------------------------------------------ */
+/* Two layers:
+     1. a tiny repeating dot grid sitting on top (adds texture / depth)
+     2. five radial gradients in Queen's / EngSoc colours fading from the corners
+   `background-size` controls each layer's tile; the dot grid repeats at 22px,
+   the colour washes fill the viewport. Sits under every page (Layout.tsx). */
 .bg-mesh {
   background-image:
+    radial-gradient(circle, rgba(0,36,82,0.06) 1px, transparent 1.5px),
     radial-gradient(ellipse at 0% 100%, rgba(0,36,82,0.12) 0%, transparent 50%),
     radial-gradient(ellipse at 100% 0%, rgba(250,189,15,0.1) 0%, transparent 45%),
     radial-gradient(ellipse at 50% 50%, rgba(102,0,153,0.06) 0%, transparent 55%),
     radial-gradient(ellipse at 80% 80%, rgba(185,14,49,0.05) 0%, transparent 40%),
     radial-gradient(ellipse at 20% 20%, rgba(0,36,82,0.06) 0%, transparent 45%);
+  background-size: 22px 22px, auto, auto, auto, auto, auto;
 }
 .dark .bg-mesh {
   background-image:
+    radial-gradient(circle, rgba(255,255,255,0.05) 1px, transparent 1.5px),
     radial-gradient(ellipse at 0% 100%, rgba(0,36,82,0.45) 0%, transparent 50%),
     radial-gradient(ellipse at 100% 0%, rgba(250,189,15,0.1) 0%, transparent 45%),
     radial-gradient(ellipse at 50% 50%, rgba(102,0,153,0.2) 0%, transparent 55%),
     radial-gradient(ellipse at 80% 80%, rgba(185,14,49,0.08) 0%, transparent 40%),
     radial-gradient(ellipse at 20% 20%, rgba(252,204,8,0.05) 0%, transparent 45%);
+  background-size: 22px 22px, auto, auto, auto, auto, auto;
 }
 
-/* gradient text utility */
+/* Queen's tricolour gradient for page titles — clipped to text so only the
+   glyphs are painted. Matches the sidebar's bottom accent line. */
 .gradient-text {
   background: linear-gradient(135deg, #002452 0%, #660099 50%, #B90E31 100%);
   -webkit-background-clip: text;
@@ -142,47 +187,64 @@ html.theme-transition *::after {
   background-clip: text;
 }
 
-/* bottom nav transitions */
+/* --- bottom nav (mobile) ----------------------------------------------- */
+/* Bottom nav slides down when user scrolls ↓, slides back up when they
+   scroll ↑. Layout.tsx toggles `.bottom-nav-hidden`. */
 .bottom-nav-pill {
   transition: transform 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.25s ease;
 }
 .bottom-nav-hidden { transform: translateY(120%); opacity: 0; }
 
-/* sidebar transitions */
+/* --- desktop sidebar --------------------------------------------------- */
+/* Collapsible: labels fade + shrink to zero width as the sidebar narrows. */
 .sidebar-transition { transition: width 0.3s cubic-bezier(0.4,0,0.2,1); }
 .sidebar-label { transition: opacity 0.2s ease, max-width 0.2s ease; overflow: hidden; white-space: nowrap; }
 
-/* animated empty states */
-.empty-state-icon {
-  animation: empty-bounce 1s cubic-bezier(0.4, 0, 0.2, 1) both;
-}
-.empty-state-text {
-  animation: empty-fade-up 0.6s ease both 0.15s;
-}
-.empty-state-text-delay {
-  animation: empty-fade-up 0.6s ease both 0.3s;
-}
+/* --- empty-state animations -------------------------------------------- */
+/* The icon bounces in, then the two text lines stagger up behind it. */
+.empty-state-icon { animation: empty-bounce 1s cubic-bezier(0.4, 0, 0.2, 1) both; }
+.empty-state-text { animation: empty-fade-up 0.6s ease both 0.15s; }
+.empty-state-text-delay { animation: empty-fade-up 0.6s ease both 0.3s; }
 @keyframes empty-bounce {
-  0% { opacity: 0; transform: scale(0.5) translateY(10px); }
-  60% { opacity: 1; transform: scale(1.08) translateY(-2px); }
+  0%   { opacity: 0; transform: scale(0.5) translateY(10px); }
+  60%  { opacity: 1; transform: scale(1.08) translateY(-2px); }
   100% { opacity: 1; transform: scale(1) translateY(0); }
 }
 @keyframes empty-fade-up {
   from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
-/* more menu backdrop */
-.more-backdrop {
-  animation: fade-in 0.2s ease;
+/* Slow heartbeat for the amber "Checked Out" status dot — draws the eye
+   without being obnoxious. @media honours the user's reduced-motion setting. */
+@keyframes soft-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(0.9); }
 }
+.animate-soft-pulse { animation: soft-pulse 2.2s ease-in-out infinite; }
+
+@media (prefers-reduced-motion: reduce) {
+  .empty-state-icon,
+  .empty-state-text,
+  .empty-state-text-delay,
+  .animate-soft-pulse {
+    animation: none !important;
+  }
+  .theme-icon, .glass-card { transition: none !important; }
+}
+
+/* Fade-in backdrop behind the mobile "More" menu. */
+.more-backdrop { animation: fade-in 0.2s ease; }
 @keyframes fade-in {
   from { opacity: 0; }
-  to { opacity: 1; }
+  to   { opacity: 1; }
 }
 
-/* scrollbar styling */
+/* --- thin scrollbar ---------------------------------------------------- */
+/* Firefox + webkit — matches the app's translucent feel. */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 3px; }
 .dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
+* { scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.15) transparent; }
+.dark * { scrollbar-color: rgba(255,255,255,0.12) transparent; }

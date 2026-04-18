@@ -1,3 +1,9 @@
+// History.tsx — full log of every loan (active + returned), with filters.
+// Filters (status / student / item / date-from / date-to) and the global
+// search box all chain together in a single `.filter()` call, then the
+// result is sorted newest-first and paginated. The "active filter count"
+// badge on the Filters button is derived from whichever filters are non-empty.
+
 import { useEffect, useState, useCallback } from "react";
 import { AlertCircle, Search, Filter, RefreshCw, X, ChevronDown, Download, History as HistoryIcon } from "lucide-react";
 import { getAllLoans, getAllHardware } from "../lib/api";
@@ -151,7 +157,7 @@ export default function History() {
         </div>
       )}
 
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+      <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
         <div className="relative flex-1 w-full sm:max-w-md">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground search-icon" />
           <Input
@@ -161,26 +167,30 @@ export default function History() {
             className="h-9 pl-9 rounded-xl glass-card border-0"
           />
         </div>
-        <Button variant="outline" size="icon" className="rounded-xl shrink-0" title="Export CSV"
-          onClick={() => exportToCSV("loan-history",
-            ["Loan ID", "Student", "Item", "Asset Tag", "Checked Out", "Returned", "Status"],
-            sorted.map((l) => [l.loan_id, l.net_id, hardwareMap[l.asset_tag] || "", l.asset_tag, new Date(l.rented_at).toLocaleString(), l.returned_at ? new Date(l.returned_at).toLocaleString() : "", l.returned_at ? "Returned" : "Active"])
-          )}>
-          <Download size={15} />
-        </Button>
-        <Button
-          variant="outline"
-          onClick={() => setShowFilters(!showFilters)}
-          className={cn("rounded-xl hover:scale-[1.02] transition-all", showFilters && "bg-primary/10 text-primary border-primary/30")}
-        >
-          <Filter size={15} />
-          Filters
-          {activeFilterCount > 0 && (
-            <span className="ml-1.5 h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
-              {activeFilterCount}
-            </span>
-          )}
-        </Button>
+        {/* Group the Download + Filters buttons so they stay side-by-side on mobile
+            instead of stacking under the search bar on narrow screens. */}
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="icon" className="rounded-xl shrink-0" title="Export CSV"
+            onClick={() => exportToCSV("loan-history",
+              ["Loan ID", "Student", "Item", "Asset Tag", "Checked Out", "Returned", "Status"],
+              sorted.map((l) => [l.loan_id, l.net_id, hardwareMap[l.asset_tag] || "", l.asset_tag, new Date(l.rented_at).toLocaleString(), l.returned_at ? new Date(l.returned_at).toLocaleString() : "", l.returned_at ? "Returned" : "Active"])
+            )}>
+            <Download size={15} />
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => setShowFilters(!showFilters)}
+            className={cn("rounded-xl hover:scale-[1.02] transition-all flex-1 sm:flex-none", showFilters && "bg-primary/10 text-primary border-primary/30")}
+          >
+            <Filter size={15} />
+            Filters
+            {activeFilterCount > 0 && (
+              <span className="ml-1.5 h-5 w-5 rounded-full bg-primary text-primary-foreground text-[10px] font-bold flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
+          </Button>
+        </div>
       </div>
 
       {/* Filter panel */}

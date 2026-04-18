@@ -1,3 +1,12 @@
+// Inventory.tsx — CRUD page for equipment.
+//   • Add item: form with just a name (backend mints the serial + asset tag).
+//   • Remove item: requires a supervisor name for the audit log (a policy
+//     from EngSoc, not a backend requirement — we enforce it here).
+//   • Search + paginate + CSV export of whatever's currently filtered.
+//
+// Remove uses an optimistic update: item disappears from the table
+// immediately, re-appears if the backend rejects the delete.
+
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Trash2, AlertCircle, Package, Search, RefreshCw, Download } from "lucide-react";
 import { getAllHardware, addHardware, removeHardware } from "../lib/api";

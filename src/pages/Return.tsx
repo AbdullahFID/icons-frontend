@@ -1,3 +1,12 @@
+// Return.tsx — two ways to process a return:
+//   (A) Scan the student's ID  → see all their open loans → return one-by-one
+//   (B) Scan the item's asset tag → quick-return just that item
+//
+// Both paths end at /loans/complete_loan/{loanId}. We do an **optimistic**
+// update: the loan is removed from the UI before the network call finishes,
+// then re-added if the call fails (see handleReturn). `inFlightReturns`
+// prevents double-clicks from firing the POST twice.
+
 import { useEffect, useState, useCallback, useRef } from "react";
 import { AlertCircle, RefreshCw, ScanLine, CheckCircle, Package, ScanBarcode } from "lucide-react";
 import { getAllLoans, completeLoan, getAllHardware } from "../lib/api";

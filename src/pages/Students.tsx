@@ -1,3 +1,10 @@
+// Students.tsx — CRUD page for student accounts.
+//   • Register: validates the net ID, student number, and name client-side
+//     (src/lib/sanitize.ts has the regex rules). Duplicates are checked
+//     against the currently-loaded list too — the backend is still the
+//     real source of truth.
+//   • Remove: optimistic (same pattern as Inventory).
+
 import { useEffect, useState, useCallback } from "react";
 import { Plus, Trash2, AlertCircle, Users, Search, RefreshCw, Download } from "lucide-react";
 import { getAllUsers, addUser, removeUser } from "../lib/api";
