@@ -37,7 +37,7 @@
     --border: 214 32% 91%;
     --input: 214 32% 91%;
     --ring: 218 100% 16%;
-    --radius: 0.75rem;
+    --radius: 1rem;
   }
   .dark {
     --background: 222 47% 6%;
@@ -97,8 +97,13 @@ html.theme-transition *::after {
 }
 
 /* Icon spins once when the user flips theme — small celebratory touch. */
-.theme-icon { transition: transform 0.5s cubic-bezier(0.4, 0, 0.2, 1); }
-.theme-icon-spin { transform: rotate(360deg); }
+.theme-icon-spin {
+  animation: icon-spin-once 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes icon-spin-once {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
 
 /* --- glassmorphism ------------------------------------------------------ */
 /* Translucent cards that pick up the mesh gradient behind them. Every "card"
@@ -106,34 +111,50 @@ html.theme-transition *::after {
 @layer utilities {
   .glass {
     background: rgba(255,255,255,0.72);
-    backdrop-filter: blur(16px);
-    -webkit-backdrop-filter: blur(16px);
-    border: 1px solid rgba(255,255,255,0.35);
+    backdrop-filter: blur(20px) saturate(1.2);
+    -webkit-backdrop-filter: blur(20px) saturate(1.2);
+    border: 1px solid rgba(255,255,255,0.4);
   }
   .dark .glass {
-    background: rgba(12,20,40,0.55);
+    background: rgba(12,20,40,0.6);
     border-color: rgba(255,255,255,0.08);
   }
   .glass-card {
     background: rgba(255,255,255,0.82);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255,255,255,0.45);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.04), 0 1px 2px rgba(0,0,0,0.02);
-    transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
+    backdrop-filter: blur(24px) saturate(1.2);
+    -webkit-backdrop-filter: blur(24px) saturate(1.2);
+    border: 1px solid rgba(255,255,255,0.5);
+    box-shadow:
+      0 1px 3px rgba(0,0,0,0.04),
+      0 4px 16px rgba(0,0,0,0.03),
+      inset 0 1px 0 rgba(255,255,255,0.7);
+    transition:
+      box-shadow 0.3s cubic-bezier(0.4,0,0.2,1),
+      transform 0.3s cubic-bezier(0.4,0,0.2,1),
+      border-color 0.3s ease;
   }
   .dark .glass-card {
-    background: rgba(12,20,40,0.5);
-    border-color: rgba(255,255,255,0.06);
-    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    background: rgba(12,20,40,0.6);
+    border-color: rgba(255,255,255,0.08);
+    box-shadow:
+      0 1px 3px rgba(0,0,0,0.2),
+      0 4px 16px rgba(0,0,0,0.12),
+      inset 0 1px 0 rgba(255,255,255,0.04);
   }
-  /* `.glass-card-interactive` — opt-in lift for cards that are also links/buttons. */
   .glass-card-interactive:hover {
-    box-shadow: 0 8px 24px rgba(0,36,82,0.08), 0 2px 6px rgba(0,0,0,0.04);
-    border-color: rgba(0,36,82,0.12);
+    transform: translateY(-2px);
+    box-shadow:
+      0 12px 32px rgba(0,36,82,0.1),
+      0 4px 12px rgba(0,0,0,0.05),
+      inset 0 1px 0 rgba(255,255,255,0.8);
+    border-color: rgba(0,36,82,0.15);
   }
   .dark .glass-card-interactive:hover {
-    box-shadow: 0 8px 24px rgba(0,0,0,0.35), 0 2px 6px rgba(0,0,0,0.2);
+    transform: translateY(-2px);
+    box-shadow:
+      0 12px 32px rgba(0,0,0,0.35),
+      0 4px 12px rgba(0,0,0,0.2),
+      inset 0 1px 0 rgba(255,255,255,0.06);
     border-color: rgba(250,189,15,0.18);
   }
 }
@@ -230,7 +251,8 @@ html.theme-transition *::after {
   .animate-soft-pulse {
     animation: none !important;
   }
-  .theme-icon, .glass-card { transition: none !important; }
+  .theme-icon-spin { animation: none !important; }
+  .glass-card { transition: none !important; }
 }
 
 /* Fade-in backdrop behind the mobile "More" menu. */
@@ -248,3 +270,522 @@ html.theme-transition *::after {
 .dark ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); }
 * { scrollbar-width: thin; scrollbar-color: rgba(0,0,0,0.15) transparent; }
 .dark * { scrollbar-color: rgba(255,255,255,0.12) transparent; }
+
+/* === LOGIN PAGE ====================================================== */
+
+.login-page {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  z-index: 100;
+}
+
+/* --- Background ------------------------------------------------------ */
+
+.login-bg {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: linear-gradient(
+    135deg,
+    #f5f7fb 0%, #edf1f8 15%, #e4e8f4 30%,
+    #f0ebf5 50%, #f6f2eb 65%, #edf1f8 80%, #f5f7fb 100%
+  );
+}
+.login-bg::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    135deg,
+    #060a14 0%, #0a1228 15%, #0d1a3f 30%,
+    #1a0e30 50%, #160a2e 65%, #0d1228 80%, #060a14 100%
+  );
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.dark .login-bg::after { opacity: 1; }
+
+/* --- Orbs ------------------------------------------------------------ */
+
+.login-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(80px);
+  will-change: transform;
+  z-index: 2;
+  animation: orb-drift 20s ease-in-out infinite;
+  opacity: 0.18;
+  transition: opacity 0.5s ease;
+}
+.dark .login-orb { opacity: 0.5; }
+
+.login-orb-1 {
+  width: 500px; height: 500px;
+  background: radial-gradient(circle, rgba(0,36,82,0.8) 0%, transparent 70%);
+  top: -15%; left: -10%;
+  animation-duration: 25s;
+}
+.login-orb-2 {
+  width: 450px; height: 450px;
+  background: radial-gradient(circle, rgba(102,0,153,0.6) 0%, transparent 70%);
+  bottom: -15%; right: -10%;
+  animation-duration: 30s; animation-delay: -5s;
+}
+.login-orb-3 {
+  width: 300px; height: 300px;
+  background: radial-gradient(circle, rgba(250,189,15,0.5) 0%, transparent 70%);
+  top: 40%; left: 55%;
+  animation-duration: 22s; animation-delay: -10s;
+}
+.login-orb-4 {
+  width: 350px; height: 350px;
+  background: radial-gradient(circle, rgba(185,14,49,0.3) 0%, transparent 70%);
+  top: 15%; right: 25%;
+  animation-duration: 28s; animation-delay: -7s;
+}
+
+@keyframes orb-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  25%      { transform: translate(40px, -50px) scale(1.1); }
+  50%      { transform: translate(-30px, 30px) scale(0.95); }
+  75%      { transform: translate(50px, 40px) scale(1.05); }
+}
+
+/* --- Particles ------------------------------------------------------- */
+
+.login-particles { position: absolute; inset: 0; overflow: hidden; z-index: 2; }
+.login-particle {
+  position: absolute;
+  width: 2px; height: 2px;
+  border-radius: 50%;
+  background: rgba(0,36,82,0.2);
+  animation: particle-float 8s ease-in-out infinite;
+}
+.dark .login-particle { background: rgba(255,255,255,0.15); }
+
+@keyframes particle-float {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 0; }
+  10%      { opacity: 1; }
+  50%      { transform: translateY(-80px) scale(1.5); opacity: 0.6; }
+  90%      { opacity: 0; }
+}
+
+/* --- Noise grid ------------------------------------------------------ */
+
+.login-noise {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  background-image: radial-gradient(circle, rgba(0,36,82,0.04) 1px, transparent 1.5px);
+  background-size: 24px 24px;
+}
+.dark .login-noise {
+  background-image: radial-gradient(circle, rgba(255,255,255,0.025) 1px, transparent 1.5px);
+}
+
+/* --- Card ------------------------------------------------------------ */
+
+.login-card {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 420px;
+  margin: 0 20px;
+  padding: 44px 40px 36px;
+  border-radius: 28px;
+  opacity: 0;
+  transform: translateY(24px) scale(0.96);
+  transition: all 0.8s cubic-bezier(0.16, 1, 0.3, 1);
+
+  color: #1a2a42;
+  background: rgba(255,255,255,0.72);
+  backdrop-filter: blur(40px) saturate(1.8);
+  -webkit-backdrop-filter: blur(40px) saturate(1.8);
+  border: 1px solid rgba(255,255,255,0.85);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.95),
+    0 25px 60px -12px rgba(0,36,82,0.12),
+    0 0 80px -20px rgba(102,0,153,0.04),
+    0 0 60px -20px rgba(0,36,82,0.06);
+}
+.dark .login-card {
+  color: #ffffff;
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.06),
+    0 25px 60px -12px rgba(0,0,0,0.5),
+    0 0 80px -20px rgba(102,0,153,0.12),
+    0 0 60px -20px rgba(0,36,82,0.15);
+}
+
+.login-card-visible { opacity: 1; transform: translateY(0) scale(1); }
+.login-card-exit {
+  opacity: 0;
+  transform: translateY(-12px) scale(0.97);
+  transition: all 0.4s cubic-bezier(0.4, 0, 1, 1);
+}
+
+/* --- Text helpers ---------------------------------------------------- */
+
+.login-subtext { color: rgba(26,42,66,0.45); }
+.dark .login-subtext { color: rgba(255,255,255,0.4); }
+
+.login-faint-text { color: rgba(26,42,66,0.2); }
+.dark .login-faint-text { color: rgba(255,255,255,0.15); }
+
+.login-icon-faint { color: rgba(26,42,66,0.3); }
+.dark .login-icon-faint { color: rgba(255,255,255,0.25); }
+
+.login-eye-btn { color: rgba(26,42,66,0.3); }
+.login-eye-btn:hover { color: rgba(26,42,66,0.6); }
+.dark .login-eye-btn { color: rgba(255,255,255,0.25); }
+.dark .login-eye-btn:hover { color: rgba(255,255,255,0.6); }
+
+.login-divider {
+  background: linear-gradient(to right, transparent, rgba(0,36,82,0.1), transparent);
+}
+.dark .login-divider {
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent);
+}
+
+/* --- Shimmer --------------------------------------------------------- */
+
+.login-shimmer {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 1px;
+  border-radius: 28px 28px 0 0;
+  background: linear-gradient(
+    90deg, transparent 0%, rgba(0,36,82,0.1) 20%,
+    rgba(250,189,15,0.2) 40%, rgba(102,0,153,0.1) 60%, transparent 100%
+  );
+}
+.dark .login-shimmer {
+  background: linear-gradient(
+    90deg, transparent 0%, rgba(250,189,15,0.4) 25%,
+    rgba(255,255,255,0.5) 50%, rgba(102,0,153,0.4) 75%, transparent 100%
+  );
+}
+
+/* --- Border glow ----------------------------------------------------- */
+
+.login-border-glow {
+  position: absolute;
+  inset: -1px;
+  border-radius: 29px;
+  z-index: -1;
+  animation: border-spin 12s linear infinite;
+  background: conic-gradient(
+    from 180deg, transparent 0%, rgba(0,36,82,0.06) 10%,
+    transparent 20%, transparent 50%, rgba(102,0,153,0.04) 60%, transparent 70%
+  );
+}
+.dark .login-border-glow {
+  background: conic-gradient(
+    from 180deg, transparent 0%, rgba(250,189,15,0.15) 10%,
+    transparent 20%, transparent 50%, rgba(102,0,153,0.12) 60%, transparent 70%
+  );
+}
+@keyframes border-spin { to { transform: rotate(360deg); } }
+
+/* --- Logo ring ------------------------------------------------------- */
+
+.login-logo-ring {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 76px; height: 76px;
+  border-radius: 22px;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(0,36,82,0.88) 0%, rgba(102,0,153,0.68) 100%);
+  border: 1px solid rgba(0,36,82,0.15);
+  box-shadow: 0 8px 32px rgba(0,36,82,0.15), inset 0 1px 0 rgba(255,255,255,0.12);
+}
+.dark .login-logo-ring {
+  background: linear-gradient(135deg, rgba(0,36,82,0.5) 0%, rgba(102,0,153,0.35) 100%);
+  border-color: rgba(255,255,255,0.1);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.08);
+}
+.login-logo-ring::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.12) 0%, transparent 50%);
+  pointer-events: none;
+}
+
+/* --- Form inputs ----------------------------------------------------- */
+
+.login-input-group { position: relative; }
+
+.login-input-icon {
+  position: absolute;
+  left: 14px; top: 50%;
+  transform: translateY(-50%);
+  width: 16px; height: 16px;
+  pointer-events: none;
+  z-index: 1;
+  color: rgba(26,42,66,0.3);
+}
+.dark .login-input-icon { color: rgba(255,255,255,0.25); }
+
+.login-input {
+  width: 100%;
+  height: 50px;
+  padding: 0 16px 0 42px;
+  border-radius: 16px;
+  font-size: 14px;
+  outline: none;
+  transition: all 0.3s ease;
+  color: #1a2a42;
+  background: rgba(0,36,82,0.04);
+  border: 1px solid rgba(0,36,82,0.1);
+}
+.login-input::placeholder { color: rgba(26,42,66,0.3); }
+.login-input:focus {
+  background: rgba(0,36,82,0.06);
+  border-color: rgba(0,36,82,0.25);
+  box-shadow: 0 0 0 3px rgba(0,36,82,0.06), 0 0 20px -6px rgba(0,36,82,0.08);
+}
+
+.dark .login-input {
+  color: white;
+  background: rgba(255,255,255,0.05);
+  border-color: rgba(255,255,255,0.08);
+}
+.dark .login-input::placeholder { color: rgba(255,255,255,0.2); }
+.dark .login-input:focus {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(250,189,15,0.35);
+  box-shadow: 0 0 0 3px rgba(250,189,15,0.08), 0 0 24px -6px rgba(250,189,15,0.12);
+}
+
+/* --- Error ----------------------------------------------------------- */
+
+.login-error {
+  text-align: center;
+  font-size: 13px;
+  color: #dc2626;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: rgba(220,38,38,0.06);
+  border: 1px solid rgba(220,38,38,0.12);
+  animation: login-shake 0.4s ease;
+}
+.dark .login-error {
+  color: #f87171;
+  background: rgba(248,113,113,0.08);
+  border-color: rgba(248,113,113,0.12);
+}
+@keyframes login-shake {
+  0%, 100% { transform: translateX(0); }
+  25%      { transform: translateX(-6px); }
+  75%      { transform: translateX(6px); }
+}
+
+/* --- Button ---------------------------------------------------------- */
+
+.login-button {
+  width: 100%;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  color: white;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, #002452 0%, #1a0a30 50%, #660099 100%);
+  box-shadow: 0 4px 20px rgba(0,36,82,0.2);
+  transition: all 0.3s cubic-bezier(0.4,0,0.2,1);
+}
+.login-button::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(250,189,15,0.2) 0%, rgba(102,0,153,0.15) 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.login-button:hover:not(:disabled)::before { opacity: 1; }
+.login-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 30px rgba(0,36,82,0.3), 0 0 40px rgba(102,0,153,0.1);
+}
+.login-button:active:not(:disabled) { transform: translateY(0); box-shadow: 0 2px 10px rgba(0,36,82,0.2); }
+.login-button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* --- Controls -------------------------------------------------------- */
+
+.login-dev-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 28px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: rgba(0,36,82,0.03);
+  border: 1px solid rgba(0,36,82,0.06);
+}
+.dark .login-dev-toggle {
+  background: rgba(255,255,255,0.03);
+  border-color: rgba(255,255,255,0.05);
+}
+
+.login-theme-toggle {
+  position: absolute;
+  top: 20px; right: 20px;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px; height: 42px;
+  border-radius: 14px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  color: rgba(26,42,66,0.45);
+  background: rgba(255,255,255,0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+.login-theme-toggle:hover {
+  color: rgba(26,42,66,0.8);
+  background: rgba(255,255,255,0.7);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  transform: scale(1.05);
+}
+.dark .login-theme-toggle {
+  color: rgba(255,255,255,0.45);
+  background: rgba(255,255,255,0.06);
+  box-shadow: none;
+}
+.dark .login-theme-toggle:hover {
+  color: rgba(255,255,255,0.85);
+  background: rgba(255,255,255,0.12);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+
+/* === PAGE TRANSITIONS ================================================ */
+
+.page-transition {
+  animation: page-in 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* === CURSOR GLOW ===================================================== */
+
+.cursor-glow {
+  position: fixed;
+  top: 0; left: 0;
+  width: 600px; height: 600px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  will-change: transform;
+  transition: transform 0.06s linear;
+  transform: translate(-300px, -300px);
+  background: radial-gradient(circle, rgba(0,36,82,0.07) 0%, transparent 70%);
+}
+.dark .cursor-glow {
+  background: radial-gradient(circle, rgba(250,189,15,0.04) 0%, transparent 70%);
+}
+@media (pointer: coarse) {
+  .cursor-glow { display: none; }
+}
+
+/* === CARD HOVER GLOW ================================================= */
+
+.glass-card-interactive {
+  position: relative;
+}
+.glass-card-interactive::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  z-index: 1;
+  opacity: 0;
+  background: radial-gradient(
+    280px circle at var(--glow-x, 50%) var(--glow-y, 50%),
+    rgba(255,255,255,0.1) 0%,
+    transparent 70%
+  );
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.glass-card-interactive:hover::before {
+  opacity: 1;
+}
+.dark .glass-card-interactive::before {
+  background: radial-gradient(
+    280px circle at var(--glow-x, 50%) var(--glow-y, 50%),
+    rgba(250,189,15,0.07) 0%,
+    transparent 70%
+  );
+}
+
+/* Login → App crossfade: the entire login page fades out revealing the app */
+.login-page-fading {
+  opacity: 0 !important;
+  transition: opacity 0.7s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  pointer-events: none;
+}
+
+/* Table rows fade in when they mount (search filtering, pagination) */
+.page-transition table tbody tr {
+  animation: row-enter 0.2s ease both;
+}
+@keyframes row-enter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* === THEME CIRCULAR REVEAL (View Transitions API) ==================== */
+::view-transition-old(root) {
+  animation: none;
+  z-index: 1;
+}
+::view-transition-new(root) {
+  z-index: 9999;
+  mix-blend-mode: normal;
+  animation: theme-reveal 0.55s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+@keyframes theme-reveal {
+  from { clip-path: circle(0px at var(--reveal-x, 50%) var(--reveal-y, 50%)); }
+  to   { clip-path: circle(var(--reveal-r, 100vmax) at var(--reveal-x, 50%) var(--reveal-y, 50%)); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .login-orb,
+  .login-particle,
+  .login-border-glow { animation: none !important; }
+  .login-card { transition: opacity 0.2s ease !important; transform: none !important; }
+  .login-card-visible { opacity: 1; }
+  .login-page-fading { transition-duration: 0.15s !important; }
+  .page-transition { animation: none !important; }
+  .page-transition table tbody tr { animation: none !important; }
+  .cursor-glow { display: none; }
+  .glass-card-interactive::before { display: none; }
+  ::view-transition-old(root),
+  ::view-transition-new(root) { animation: none !important; }
+}

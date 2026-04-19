@@ -4,7 +4,13 @@
       "mcp__Desktop_Commander__start_process",
       "WebFetch(domain:www.engsoc.queensu.ca)",
       "Bash(pnpm add:*)",
-      "Bash(pnpm build:*)"
+      "Bash(pnpm build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(pnpm dev:*)",
+      "Bash(curl -s \"https://api.github.com/repos/kyleandersen2007/icons-database-tool\")",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\(d.get\\(''''description'''',''''''''\\), d.get\\(''''language'''',''''''''\\), d.get\\(''''default_branch'''',''''''''\\)\\)\")",
+      "Bash(curl -s \"https://api.github.com/repos/kyleandersen2007/icons-database-tool/contents/\")",
+      "Bash(python3 -c \"import sys,json; [print\\(f[''''name''''], f[''''type'''']\\) for f in json.load\\(sys.stdin\\)]\")"
     ]
   }
 }

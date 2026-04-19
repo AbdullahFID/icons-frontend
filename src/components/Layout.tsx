@@ -15,8 +15,9 @@ import { useState, useEffect, useRef } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { isDevMode, setDevMode, onDevModeChange } from "@/lib/devMode";
-import { getTheme, setTheme, applyTheme, type Theme } from "@/lib/theme";
+import { getTheme, setTheme, type Theme } from "@/lib/theme";
 import { getUnreadFailureCount, clearUnreadFailures, onFailureCountChange } from "@/lib/operationQueue";
+import { logout } from "@/lib/auth";
 import { Switch } from "@/components/ui/switch";
 import {
   LayoutDashboard,
@@ -35,6 +36,7 @@ import {
   PanelLeftOpen,
   MoreHorizontal,
   X,
+  LogOut,
 } from "lucide-react";
 
 // Single source of truth for every nav link. Changing the label or icon
@@ -75,6 +77,7 @@ export default function Layout() {
   const [showBottomNav, setShowBottomNav] = useState(true);
   const lastScrollY = useRef(0);
   const mainRef = useRef<HTMLElement>(null);
+  const glowRef = useRef<HTMLDivElement>(null);
   const location = useLocation();
 
   // Close the "More" panel whenever the user navigates to a new page.
@@ -102,13 +105,15 @@ export default function Layout() {
 
   function toggleDevMode(enabled: boolean) { setDevMode(enabled); }
 
-  function toggleTheme() {
+  function toggleTheme(e: React.MouseEvent) {
     const next = currentTheme === "light" ? "dark" : "light";
     setCurrentTheme(next);
-    setTheme(next);
-    // One-shot spin animation on the icon button.
     setIconSpin(true);
-    setTimeout(() => setIconSpin(false), 500);
+    setTimeout(() => setIconSpin(false), 550);
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const x = rect.left + rect.width / 2;
+    const y = rect.top + rect.height / 2;
+    setTimeout(() => setTheme(next, x, y), 0);
   }
 
   // Hide the bottom nav when the user scrolls down past 60px, show it again
@@ -127,8 +132,26 @@ export default function Layout() {
     return () => el.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // When any nav item tucked into "More" is the active route, highlight the
-  // "More" button on the bottom pill so the user knows where they are.
+  useEffect(() => {
+    let rafId = 0;
+    function onMove(e: MouseEvent) {
+      cancelAnimationFrame(rafId);
+      rafId = requestAnimationFrame(() => {
+        if (glowRef.current) {
+          glowRef.current.style.transform = `translate(${e.clientX - 300}px, ${e.clientY - 300}px)`;
+        }
+        const card = (e.target as HTMLElement).closest(".glass-card-interactive") as HTMLElement | null;
+        if (card) {
+          const r = card.getBoundingClientRect();
+          card.style.setProperty("--glow-x", `${e.clientX - r.left}px`);
+          card.style.setProperty("--glow-y", `${e.clientY - r.top}px`);
+        }
+      });
+    }
+    document.addEventListener("mousemove", onMove, { passive: true });
+    return () => { document.removeEventListener("mousemove", onMove); cancelAnimationFrame(rafId); };
+  }, []);
+
   const isMoreActive = mobileMoreItems.some((item) =>
     item.to === "/" ? location.pathname === "/" : location.pathname.startsWith(item.to)
   );
@@ -137,6 +160,7 @@ export default function Layout() {
 
   return (
     <div className="flex h-screen bg-background bg-mesh">
+      <div ref={glowRef} className="cursor-glow" aria-hidden="true" />
       {/* ============================== DESKTOP SIDEBAR ============================== */}
       <aside
         className={cn(
@@ -212,6 +236,10 @@ export default function Layout() {
             {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
             <span className={cn("sidebar-label", collapsed ? "opacity-0 max-w-0" : "opacity-100 max-w-[200px]")}>Collapse</span>
           </button>
+          <button onClick={() => logout()} className={cn("flex items-center rounded-lg py-2 text-sm font-medium text-red-400/60 hover:bg-red-500/10 hover:text-red-400 transition-all w-full", collapsed ? "justify-center gap-0 px-2" : "gap-3 px-3")} title="Sign out">
+            <LogOut className="h-4 w-4 shrink-0" />
+            <span className={cn("sidebar-label", collapsed ? "opacity-0 max-w-0" : "opacity-100 max-w-[200px]")}>Sign Out</span>
+          </button>
         </div>
 
         {/* Tricolour accent + team attribution */}
@@ -243,8 +271,7 @@ export default function Layout() {
             </button>
           </div>
         </div>
-        {/* `key={devKey}` remounts the tree on dev-mode flip, re-fetching pages. */}
-        <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8" key={devKey}><Outlet /></div>
+        <div className="page-transition max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8" key={`${devKey}-${location.pathname}`}><Outlet /></div>
       </main>
 
       {/* ============================== MOBILE NAV ============================== */}
@@ -285,13 +312,8 @@ export default function Layout() {
                 </NavLink>
               ))}
             </div>
-            <div className="h-px bg-white/10" />
-            <div className="flex items-center gap-3 px-3.5">
-              <NavLink to="/checkout" onClick={() => setMoreOpen(false)} className="text-xs text-white/50 hover:text-white transition-colors">Checkout</NavLink>
-              <span className="text-white/20">&middot;</span>
-              <NavLink to="/return" onClick={() => setMoreOpen(false)} className="text-xs text-white/50 hover:text-white transition-colors">Return</NavLink>
-            </div>
             <div className="h-0.5 bg-gradient-to-r from-queens-gold via-queens-red to-engsoc-purple rounded-full" />
+            <p className="text-[10px] text-white/25 px-3.5 pb-0.5">Team 887B &middot; APSC 103</p>
           </div>
         </div>
 

@@ -13,22 +13,22 @@
 
 import { checkRateLimit, getRateLimitReset } from "./rateLimiter";
 import { isDevMode } from "./devMode";
-import { mockUsers, mockHardware, mockLoans, mockLoanDetail } from "./mockData";
+import {
+  initDB,
+  dbGetAllUsers, dbGetUser, dbAddUser, dbRemoveUser,
+  dbGetAllHardware, dbGetHardware, dbAddHardware, dbRemoveHardware,
+  dbGetAllLoans, dbGetLoan, dbCreateLoan, dbCompleteLoan,
+} from "./indexedDB";
 
-// BASE is empty when hosted on the same origin as the backend (Pi/Flask demo),
-// otherwise it points at Kyle's tunneled FastAPI instance. `import.meta.env`
-// lets Vite inject a build-time value without rebuilding code.
 const BASE =
   import.meta.env.VITE_API_URL ??
   "https://synthetic-before-zones-firewire.trycloudflare.com";
 
 async function request(path: string, options?: RequestInit) {
-  // Dev mode short-circuits the network so we can demo without a backend.
   if (isDevMode()) {
-    return handleMockRequest(path, options);
+    return handleIndexedDBRequest(path, options);
   }
 
-  // Client-side throttle so a runaway loop can't hammer the backend.
   if (!checkRateLimit(path)) {
     const resetIn = getRateLimitReset(path);
     throw new Error(`Too many requests. Please wait ${resetIn}s before trying again.`);
@@ -40,7 +40,6 @@ async function request(path: string, options?: RequestInit) {
   });
 
   if (!res.ok) {
-    // FastAPI returns { detail: "..." } on errors; fall back to a generic message.
     const err = await res.json().catch(() => ({ detail: "Request failed" }));
     throw new Error(err.detail || `Error ${res.status}`);
   }
@@ -48,76 +47,52 @@ async function request(path: string, options?: RequestInit) {
   return res.json();
 }
 
-// Mock-request handler: mirrors the real backend's response shape so the UI
-// doesn't know the difference. Mutates mockUsers/mockHardware/mockLoans in
-// place so the preview feels "live" within a single page session.
-function handleMockRequest(path: string, options?: RequestInit) {
-  return new Promise((resolve) => {
-    // 300ms fake latency — makes loading states show up so we can demo them.
-    setTimeout(() => {
-      // --- users ---
-      if (path === "/users/get_all_users") {
-        resolve([...mockUsers]);
-      } else if (path.startsWith("/users/retrieve_user/")) {
-        const sn = path.split("/").pop();
-        const user = mockUsers.find((u) => u.student_number === sn);
-        resolve(user || { detail: "User not found" });
-      } else if (path === "/users/add_user" && options?.method === "POST") {
-        const body = JSON.parse(options.body as string);
-        const newUser = { id: Date.now(), name: body.name, net_id: body.net_id, student_number: body.student_number };
-        mockUsers.push(newUser);
-        resolve(newUser);
-      } else if (path.startsWith("/users/remove_user/")) {
-        resolve({ message: "User removed" });
+async function handleIndexedDBRequest(path: string, options?: RequestInit) {
+  await initDB();
+  await new Promise((r) => setTimeout(r, 150));
 
-      // --- hardware ---
-      } else if (path.startsWith("/hardware/get_all_hardware")) {
-        const availableOnly = path.includes("available_only=true");
-        const items = availableOnly ? mockHardware.filter((h) => h.available) : [...mockHardware];
-        resolve(items);
-      } else if (path.startsWith("/hardware/get_hardware/")) {
-        const sn = path.split("/").pop();
-        resolve(mockHardware.find((h) => h.serial_number === sn) || { detail: "Not found" });
-      } else if (path === "/hardware/create_hardware" && options?.method === "POST") {
-        const body = JSON.parse(options.body as string);
-        const tag = "AT-" + Math.random().toString(36).substring(2, 8).toUpperCase();
-        const serial = "SN-20260317-" + Math.random().toString(36).substring(2, 10).toUpperCase();
-        const newItem = { id: Date.now(), name: body.name, serial_number: serial, asset_tag: tag, available: true };
-        mockHardware.push(newItem);
-        resolve(newItem);
-      } else if (path.startsWith("/hardware/delete_hardware/")) {
-        resolve({ message: "Hardware removed" });
+  if (path === "/users/get_all_users") {
+    return dbGetAllUsers();
+  } else if (path.startsWith("/users/retrieve_user/")) {
+    const sn = path.split("/").pop()!;
+    const user = await dbGetUser(sn);
+    return user ?? { detail: "User not found" };
+  } else if (path === "/users/add_user" && options?.method === "POST") {
+    const body = JSON.parse(options.body as string);
+    return dbAddUser(body.name, body.net_id, body.student_number);
+  } else if (path.startsWith("/users/remove_user/")) {
+    const sn = path.split("/").pop()!;
+    return dbRemoveUser(sn);
 
-      // --- loans ---
-      } else if (path.startsWith("/loans/get_all_loans")) {
-        const activeOnly = path.includes("active_only=true");
-        const loans = activeOnly ? mockLoans.filter((l) => !l.returned_at) : [...mockLoans];
-        resolve(loans);
-      } else if (path.startsWith("/loans/get_loan/")) {
-        resolve(mockLoanDetail);
-      } else if (path === "/loans/create_loan" && options?.method === "POST") {
-        const body = JSON.parse(options.body as string);
-        const newLoan = {
-          id: Date.now(),
-          loan_id: `LN-${body.net_id}-${body.asset_tag}-${Date.now()}`,
-          net_id: body.net_id,
-          asset_tag: body.asset_tag,
-          rented_at: new Date().toISOString(),
-          returned_at: null,
-        };
-        mockLoans.unshift(newLoan);
-        resolve(newLoan);
-      } else if (path.startsWith("/loans/complete_loan/")) {
-        const loanId = path.split("/").pop();
-        const loan = mockLoans.find((l) => l.loan_id === loanId);
-        if (loan) loan.returned_at = new Date().toISOString();
-        resolve(loan || { message: "Loan completed" });
+  } else if (path.startsWith("/hardware/get_all_hardware")) {
+    const availableOnly = path.includes("available_only=true");
+    return dbGetAllHardware(availableOnly);
+  } else if (path.startsWith("/hardware/get_hardware/")) {
+    const sn = path.split("/").pop()!;
+    const hw = await dbGetHardware(sn);
+    return hw ?? { detail: "Not found" };
+  } else if (path === "/hardware/create_hardware" && options?.method === "POST") {
+    const body = JSON.parse(options.body as string);
+    return dbAddHardware(body.name);
+  } else if (path.startsWith("/hardware/delete_hardware/")) {
+    const sn = path.split("/").pop()!;
+    return dbRemoveHardware(sn);
 
-      } else {
-        resolve({ detail: "Mock endpoint not found" });
-      }
-    }, 300);
-  });
+  } else if (path.startsWith("/loans/get_all_loans")) {
+    const activeOnly = path.includes("active_only=true");
+    return dbGetAllLoans(activeOnly);
+  } else if (path.startsWith("/loans/get_loan/")) {
+    const loanId = path.split("/").pop()!;
+    return dbGetLoan(loanId);
+  } else if (path === "/loans/create_loan" && options?.method === "POST") {
+    const body = JSON.parse(options.body as string);
+    return dbCreateLoan(body.net_id, body.asset_tag);
+  } else if (path.startsWith("/loans/complete_loan/")) {
+    const loanId = path.split("/").pop()!;
+    return dbCompleteLoan(loanId);
+  }
+
+  return { detail: "Endpoint not found" };
 }
 
 // ---------------------------------------------------------------------------
