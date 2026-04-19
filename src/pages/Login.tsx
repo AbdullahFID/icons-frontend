@@ -38,15 +38,12 @@ export default function LoginPage({
     }
   }, []);
 
-  function toggleTheme(e: React.MouseEvent) {
+  function toggleTheme() {
     const next = currentTheme === "light" ? "dark" : "light";
     setCurrentTheme(next);
     setIconSpin(true);
     setTimeout(() => setIconSpin(false), 550);
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const x = rect.left + rect.width / 2;
-    const y = rect.top + rect.height / 2;
-    setTimeout(() => setTheme(next, x, y), 0);
+    setTheme(next);
   }
 
   async function handleSubmit(e: React.FormEvent) {

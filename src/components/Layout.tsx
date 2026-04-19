@@ -105,15 +105,12 @@ export default function Layout() {
 
   function toggleDevMode(enabled: boolean) { setDevMode(enabled); }
 
-  function toggleTheme(e: React.MouseEvent) {
+  function toggleTheme() {
     const next = currentTheme === "light" ? "dark" : "light";
     setCurrentTheme(next);
     setIconSpin(true);
     setTimeout(() => setIconSpin(false), 550);
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const x = rect.left + rect.width / 2;
-    const y = rect.top + rect.height / 2;
-    setTimeout(() => setTheme(next, x, y), 0);
+    setTheme(next);
   }
 
   // Hide the bottom nav when the user scrolls down past 60px, show it again
