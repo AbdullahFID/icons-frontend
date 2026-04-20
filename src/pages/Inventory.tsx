@@ -16,6 +16,7 @@ import StatusBadge from "../components/StatusBadge";
 import TableSkeleton from "../components/TableSkeleton";
 import { useToast } from "@/components/ui/toast";
 import { addOperation, resolveOperation } from "@/lib/operationQueue";
+import { getCurrentUser } from "@/lib/auth";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import Pagination, { paginate } from "../components/Pagination";
 import EmptyState from "../components/EmptyState";
@@ -72,7 +73,10 @@ export default function Inventory() {
     setAdding(true);
     setError("");
     try {
+      const performer = getCurrentUser()?.name ?? "Staff";
+      const opId = addOperation("Add Equipment", newName.trim(), performer);
       const created = await addHardware(sanitizeInput(newName.trim()));
+      resolveOperation(opId, "success");
       setItems((prev) => [...prev, created]);
       setNewName("");
       setShowForm(false);

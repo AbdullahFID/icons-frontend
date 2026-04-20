@@ -1,19 +1,11 @@
-// Checkout.tsx — four-step wizard for creating a new loan.
-//   step 1 "student"   → scan/enter the student's net ID
-//   step 2 "equipment" → scan/enter the item's asset tag
-//   step 3 "confirm"   → review both + hit Confirm (this is where the POST fires)
-//   step 4 "done"      → show the new loan ID and a "New Checkout" button
-//
-// Before hitting /loans/create_loan we re-fetch active loans and make sure
-// the same asset tag isn't already checked out — the backend enforces this
-// too, but the client check gives a friendlier error instantly.
-
 import { useState, useEffect } from "react";
 import { CheckCircle, AlertCircle, RotateCcw } from "lucide-react";
 import ScanInput from "../components/ScanInput";
-import { createLoan, getAllLoans, getAllHardware } from "../lib/api";
+import { createLoan, getAllLoans, getAllHardware, getAllUsers } from "../lib/api";
 import { sanitizeInput } from "../lib/sanitize";
-import type { Loan, Hardware } from "../types";
+import { addOperation, resolveOperation } from "@/lib/operationQueue";
+import { getCurrentUser } from "@/lib/auth";
+import type { Loan, Hardware, User } from "../types";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -27,10 +19,20 @@ export default function Checkout() {
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [hardware, setHardware] = useState<Hardware[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
 
   useEffect(() => {
-    getAllHardware().then((items: Hardware[]) => setHardware(items)).catch(() => {});
+    Promise.all([getAllHardware(), getAllUsers()])
+      .then(([hwData, userData]) => {
+        setHardware(hwData);
+        setUsers(userData);
+      })
+      .catch(() => {});
   }, []);
+
+  const matchedStudent = users.find(
+    (u) => u.net_id.toLowerCase() === netId.trim().toLowerCase()
+  );
 
   const matchedItem = hardware.find(
     (h) => h.asset_tag.toLowerCase() === assetTag.trim().toLowerCase()
@@ -39,12 +41,34 @@ export default function Checkout() {
   function handleStudentScan() {
     if (!netId.trim()) return;
     setError("");
+
+    const student = users.find(
+      (u) => u.net_id.toLowerCase() === netId.trim().toLowerCase()
+    );
+    if (!student) {
+      setError(`Student "${netId.trim()}" not found. Please check the Net ID and try again.`);
+      return;
+    }
+
     setStep("equipment");
   }
 
   function handleEquipmentScan() {
     if (!assetTag.trim()) return;
     setError("");
+
+    const item = hardware.find(
+      (h) => h.asset_tag.toLowerCase() === assetTag.trim().toLowerCase()
+    );
+    if (!item) {
+      setError(`Equipment "${assetTag.trim()}" not found. Please check the asset tag.`);
+      return;
+    }
+    if (!item.available) {
+      setError(`"${item.name}" (${item.asset_tag}) is currently checked out.`);
+      return;
+    }
+
     setStep("confirm");
   }
 
@@ -61,7 +85,11 @@ export default function Checkout() {
         setSubmitting(false);
         return;
       }
+      const performer = getCurrentUser()?.name ?? "Staff";
+      const detail = `${matchedStudent?.name ?? netId} → ${matchedItem?.name ?? assetTag}`;
+      const opId = addOperation("Checkout", detail, performer);
       const loan = await createLoan(sanitizeInput(netId.trim()), sanitizeInput(assetTag.trim()));
+      resolveOperation(opId, "success");
       setResult(loan);
       setStep("done");
     } catch (err) {
@@ -88,8 +116,6 @@ export default function Checkout() {
         </p>
       </div>
 
-      {/* Step indicator — label text hides below sm: so the three circles
-          always fit on an iPhone SE-width screen without overflow. */}
       <div className="flex items-center gap-2 sm:gap-3">
         {["Student ID", "Equipment", "Confirm"].map((label, i) => {
           const stepIndex = ["student", "equipment", "confirm", "done"].indexOf(step);
@@ -134,7 +160,8 @@ export default function Checkout() {
           <div className="space-y-4">
             <div className="rounded-lg bg-muted px-4 py-2.5 text-sm">
               <span className="text-muted-foreground">Student: </span>
-              <span className="font-medium">{netId}</span>
+              <span className="font-medium">{matchedStudent?.name ?? netId}</span>
+              {matchedStudent && <span className="text-muted-foreground ml-1.5">({netId})</span>}
             </div>
             <div>
               <label className="block text-sm font-medium mb-2">Equipment Asset Tag</label>
@@ -151,6 +178,12 @@ export default function Checkout() {
           <div className="space-y-5">
             <h3 className="text-base font-semibold">Confirm Checkout</h3>
             <div className="space-y-2">
+              {matchedStudent && (
+                <div className="flex justify-between rounded-lg bg-muted px-4 py-2.5 text-sm">
+                  <span className="text-muted-foreground">Student Name</span>
+                  <span className="font-medium">{matchedStudent.name}</span>
+                </div>
+              )}
               <div className="flex justify-between rounded-lg bg-muted px-4 py-2.5 text-sm">
                 <span className="text-muted-foreground">Student Net ID</span>
                 <span className="font-medium">{netId}</span>

@@ -14,11 +14,9 @@
 import { useState, useEffect, useRef } from "react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
-import { isDevMode, setDevMode, onDevModeChange } from "@/lib/devMode";
 import { getTheme, setTheme, type Theme } from "@/lib/theme";
 import { getUnreadFailureCount, clearUnreadFailures, onFailureCountChange } from "@/lib/operationQueue";
 import { logout } from "@/lib/auth";
-import { Switch } from "@/components/ui/switch";
 import {
   LayoutDashboard,
   ScanLine,
@@ -28,7 +26,6 @@ import {
   History,
   ScrollText,
   BarChart3,
-  Code2,
   Sun,
   Moon,
   Bell,
@@ -62,13 +59,8 @@ const mobileMoreItems = navItems.slice(5);
 const ENGSOC_LOGO = "https://www.engsoc.queensu.ca/wp-content/uploads/2024/01/EngSocLogo_ShortWordmark_WhiteText-3-300x300.png";
 
 export default function Layout() {
-  // Local UI state — nothing here needs to persist across routes.
-  const [devEnabled, setDevEnabled] = useState(isDevMode());
   const [currentTheme, setCurrentTheme] = useState<Theme>(getTheme());
   const [collapsed, setCollapsed] = useState(false);
-  // devKey forces the main area to remount when dev mode flips so pages
-  // re-run their initial fetch against the (now mock / now real) backend.
-  const [devKey, setDevKey] = useState(0);
   const [failureCount, setFailureCount] = useState(getUnreadFailureCount());
   const [moreOpen, setMoreOpen] = useState(false);
   const [iconSpin, setIconSpin] = useState(false);
@@ -90,20 +82,10 @@ export default function Layout() {
     if (currentTheme === "dark") document.documentElement.classList.add("dark");
   }, []);
 
-  // Subscribe to dev-mode changes so toggling from anywhere re-renders Layout.
-  useEffect(() => {
-    return onDevModeChange((enabled) => {
-      setDevEnabled(enabled);
-      setDevKey((k) => k + 1);
-    });
-  }, []);
-
   // Subscribe to failure-count changes for the red bell badge.
   useEffect(() => {
     return onFailureCountChange((count) => setFailureCount(count));
   }, []);
-
-  function toggleDevMode(enabled: boolean) { setDevMode(enabled); }
 
   function toggleTheme() {
     const next = currentTheme === "light" ? "dark" : "light";
@@ -216,19 +198,6 @@ export default function Layout() {
             <ThemeIcon className={cn("h-4 w-4 shrink-0 theme-icon", iconSpin && "theme-icon-spin")} />
             <span className={cn("sidebar-label", collapsed ? "opacity-0 max-w-0" : "opacity-100 max-w-[200px]")}>{currentTheme === "light" ? "Dark Mode" : "Light Mode"}</span>
           </button>
-          {collapsed ? (
-            <button onClick={() => toggleDevMode(!devEnabled)} className="flex items-center justify-center rounded-lg py-2 px-2 w-full" title="Toggle Dev Mode">
-              <Code2 className={cn("h-4 w-4", devEnabled ? "text-amber-400" : "text-white/40")} />
-            </button>
-          ) : (
-            <div className="flex items-center justify-between rounded-lg py-2 px-3 text-sm">
-              <div className="flex items-center gap-3">
-                <Code2 className={cn("h-4 w-4 shrink-0", devEnabled ? "text-amber-400" : "text-white/40")} />
-                <span className="text-white/55 font-medium">Dev Mode</span>
-              </div>
-              <Switch checked={devEnabled} onCheckedChange={toggleDevMode} />
-            </div>
-          )}
           <button onClick={() => setCollapsed(!collapsed)} className={cn("flex items-center rounded-lg py-2 text-sm font-medium text-white/35 hover:bg-white/10 hover:text-white/60 transition-all w-full", collapsed ? "justify-center gap-0 px-2" : "gap-3 px-3")}>
             {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
             <span className={cn("sidebar-label", collapsed ? "opacity-0 max-w-0" : "opacity-100 max-w-[200px]")}>Collapse</span>
@@ -262,13 +231,12 @@ export default function Layout() {
                 <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-red-500 ring-2 ring-background" />
               </NavLink>
             )}
-            {devEnabled && <span className="text-[10px] font-semibold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/40 px-2 py-0.5 rounded-full tracking-wider">DEV</span>}
             <button onClick={toggleTheme} className="p-2 rounded-lg hover:bg-accent transition-colors" aria-label="Toggle theme">
               <ThemeIcon className={cn("h-4 w-4 theme-icon", iconSpin && "theme-icon-spin")} />
             </button>
           </div>
         </div>
-        <div className="page-transition max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8" key={`${devKey}-${location.pathname}`}><Outlet /></div>
+        <div className="page-transition max-w-6xl mx-auto px-4 md:px-8 py-6 md:py-8" key={location.pathname}><Outlet /></div>
       </main>
 
       {/* ============================== MOBILE NAV ============================== */}
@@ -309,6 +277,13 @@ export default function Layout() {
                 </NavLink>
               ))}
             </div>
+            <button
+              onClick={() => { setMoreOpen(false); logout(); }}
+              className="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium text-red-400/80 hover:bg-red-500/10 hover:text-red-400 transition-all w-full"
+            >
+              <LogOut className="h-[18px] w-[18px]" />
+              Sign Out
+            </button>
             <div className="h-0.5 bg-gradient-to-r from-queens-gold via-queens-red to-engsoc-purple rounded-full" />
             <p className="text-[10px] text-white/25 px-3.5 pb-0.5">Team 887B &middot; APSC 103</p>
           </div>

@@ -1,8 +1,10 @@
-import type { User, Hardware, Loan, LoanDetail } from "../types";
-import { mockUsers, mockHardware, mockLoans } from "./mockData";
+import type { User, Hardware, Loan, LoanDetail, Account } from "../types";
+import { mockUsers, mockHardware, mockLoans, mockAccounts } from "./mockData";
 
 const DB_NAME = "icons-dev-db";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
+const SEED_VERSION = "3";
+const SEED_VERSION_KEY = "icons_seed_version";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -33,6 +35,10 @@ function openDB(): Promise<IDBDatabase> {
         s.createIndex("net_id", "net_id");
         s.createIndex("asset_tag", "asset_tag");
       }
+
+      if (!db.objectStoreNames.contains("accounts")) {
+        db.createObjectStore("accounts", { keyPath: "id" });
+      }
     };
 
     req.onsuccess = () => resolve(req.result);
@@ -56,26 +62,37 @@ function reqResult<T>(req: IDBRequest<T>): Promise<T> {
   });
 }
 
-async function seedIfEmpty(): Promise<void> {
+async function seedData(): Promise<void> {
   const db = await openDB();
-  const count = await reqResult(
-    db.transaction("users", "readonly").objectStore("users").count()
-  );
-  if (count > 0) return;
+  const currentVersion = localStorage.getItem(SEED_VERSION_KEY);
 
-  const tx = db.transaction(["users", "hardware", "loans"], "readwrite");
+  if (currentVersion === SEED_VERSION) return;
+
+  const tx = db.transaction(["users", "hardware", "loans", "accounts"], "readwrite");
+  tx.objectStore("users").clear();
+  tx.objectStore("hardware").clear();
+  tx.objectStore("loans").clear();
+  tx.objectStore("accounts").clear();
+
   for (const u of mockUsers) tx.objectStore("users").add({ ...u });
   for (const h of mockHardware) tx.objectStore("hardware").add({ ...h });
   for (const l of mockLoans) tx.objectStore("loans").add({ ...l });
+  for (const a of mockAccounts) tx.objectStore("accounts").add({ ...a });
   await txDone(tx);
+
+  localStorage.setItem(SEED_VERSION_KEY, SEED_VERSION);
 }
 
 let initialized = false;
 
 export async function initDB(): Promise<void> {
   if (initialized) return;
-  await openDB();
-  await seedIfEmpty();
+  try {
+    await openDB();
+    await seedData();
+  } catch {
+    dbPromise = null;
+  }
   initialized = true;
 }
 
@@ -115,6 +132,34 @@ async function deleteByIndex(store: string, index: string, value: string): Promi
   const key = await reqResult(s.index(index).getKey(value));
   if (key !== undefined) s.delete(key);
   await txDone(tx);
+}
+
+async function deleteByKey(store: string, key: IDBValidKey): Promise<void> {
+  const db = await openDB();
+  const tx = db.transaction(store, "readwrite");
+  tx.objectStore(store).delete(key);
+  await txDone(tx);
+}
+
+// === Accounts ===
+
+export async function dbGetAllAccounts(): Promise<Account[]> {
+  return getAll("accounts");
+}
+
+export async function dbAddAccount(name: string, role: "admin" | "manager"): Promise<Account> {
+  const account: Account = { id: Date.now(), name, role };
+  return addItem("accounts", account);
+}
+
+export async function dbUpdateAccount(id: number, name: string, role: "admin" | "manager"): Promise<Account> {
+  const updated: Account = { id, name, role };
+  return putItem("accounts", updated);
+}
+
+export async function dbRemoveAccount(id: number): Promise<{ message: string }> {
+  await deleteByKey("accounts", id);
+  return { message: "Account removed" };
 }
 
 // === Users ===

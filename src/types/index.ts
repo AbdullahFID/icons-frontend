@@ -28,3 +28,9 @@ export interface LoanDetail extends Loan {
   user: User;
   hardware: Hardware;
 }
+
+export interface Account {
+  id: number;
+  name: string;
+  role: "admin" | "manager";
+}

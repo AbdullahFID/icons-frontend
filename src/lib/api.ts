@@ -48,8 +48,23 @@ async function request(path: string, options?: RequestInit) {
 }
 
 async function handleIndexedDBRequest(path: string, options?: RequestInit) {
-  await initDB();
+  try {
+    await initDB();
+  } catch {
+    if (path.includes("get_all")) return [];
+    return { detail: "Database initializing" };
+  }
   await new Promise((r) => setTimeout(r, 150));
+
+  try {
+    return await routeIndexedDBRequest(path, options);
+  } catch {
+    if (path.includes("get_all")) return [];
+    return { detail: "Operation failed" };
+  }
+}
+
+async function routeIndexedDBRequest(path: string, options?: RequestInit) {
 
   if (path === "/users/get_all_users") {
     return dbGetAllUsers();

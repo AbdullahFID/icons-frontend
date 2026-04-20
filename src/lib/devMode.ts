@@ -6,11 +6,7 @@ const DEV_MODE_KEY = "icons_dev_mode";
 const DEV_MODE_EVENT = "icons_dev_mode_change";
 
 export function isDevMode(): boolean {
-  try {
-    return localStorage.getItem(DEV_MODE_KEY) === "true";
-  } catch {
-    return false;
-  }
+  return true;
 }
 
 export function setDevMode(enabled: boolean) {

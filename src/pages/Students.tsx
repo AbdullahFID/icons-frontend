@@ -13,6 +13,7 @@ import type { User } from "../types";
 import TableSkeleton from "../components/TableSkeleton";
 import { useToast } from "@/components/ui/toast";
 import { addOperation, resolveOperation } from "@/lib/operationQueue";
+import { getCurrentUser } from "@/lib/auth";
 import { useAutoRefresh } from "../hooks/useAutoRefresh";
 import Pagination, { paginate } from "../components/Pagination";
 import EmptyState from "../components/EmptyState";
@@ -80,11 +81,14 @@ export default function Students() {
     setAdding(true);
     setError("");
     try {
+      const performer = getCurrentUser()?.name ?? "Staff";
+      const opId = addOperation("Add Student", `${formName.trim()} (${formNetId.trim()})`, performer);
       const created = await addUser(
         sanitizeInput(formName.trim()),
         sanitizeInput(formNetId.trim()),
         sanitizeInput(formStudentNum.trim())
       );
+      resolveOperation(opId, "success");
       setStudents((prev) => [...prev, created]);
       setFormName(""); setFormNetId(""); setFormStudentNum("");
       setShowForm(false);
@@ -106,7 +110,8 @@ export default function Students() {
     // optimistic: remove from UI immediately
     setStudents((prev) => prev.filter((s) => s.student_number !== studentNumber));
 
-    const opId = addOperation("Remove Student", detail, "Staff");
+    const performer = getCurrentUser()?.name ?? "Staff";
+    const opId = addOperation("Remove Student", detail, performer);
     const toastId = addToast(`Queued removal: ${detail}`, "loading");
 
     try {
