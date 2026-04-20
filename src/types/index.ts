@@ -32,5 +32,7 @@ export interface LoanDetail extends Loan {
 export interface Account {
   id: number;
   name: string;
+  username: string;
+  password: string;
   role: "admin" | "manager";
 }

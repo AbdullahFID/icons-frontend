@@ -3,7 +3,7 @@ import { mockUsers, mockHardware, mockLoans, mockAccounts } from "./mockData";
 
 const DB_NAME = "icons-dev-db";
 const DB_VERSION = 2;
-const SEED_VERSION = "3";
+const SEED_VERSION = "4";
 const SEED_VERSION_KEY = "icons_seed_version";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -147,13 +147,13 @@ export async function dbGetAllAccounts(): Promise<Account[]> {
   return getAll("accounts");
 }
 
-export async function dbAddAccount(name: string, role: "admin" | "manager"): Promise<Account> {
-  const account: Account = { id: Date.now(), name, role };
+export async function dbAddAccount(name: string, username: string, password: string, role: "admin" | "manager"): Promise<Account> {
+  const account: Account = { id: Date.now(), name, username, password, role };
   return addItem("accounts", account);
 }
 
-export async function dbUpdateAccount(id: number, name: string, role: "admin" | "manager"): Promise<Account> {
-  const updated: Account = { id, name, role };
+export async function dbUpdateAccount(id: number, name: string, username: string, password: string, role: "admin" | "manager"): Promise<Account> {
+  const updated: Account = { id, name, username, password, role };
   return putItem("accounts", updated);
 }
 

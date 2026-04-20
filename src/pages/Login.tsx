@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { loginAs } from "../lib/auth";
 import { initDB, dbGetAllAccounts } from "../lib/indexedDB";
 import { getTheme, setTheme, type Theme } from "../lib/theme";
 import { cn } from "../lib/utils";
-import { ArrowRight, Loader2, Sun, Moon, Shield, UserCog } from "lucide-react";
+import { ArrowRight, Loader2, Sun, Moon, Shield, UserCog, Lock, Eye, EyeOff } from "lucide-react";
 import type { Account } from "../types";
 
 const ENGSOC_LOGO =
@@ -34,6 +34,12 @@ export default function LoginPage({
   const [exiting, setExiting] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<Theme>(getTheme());
   const [iconSpin, setIconSpin] = useState(false);
+  const [passwordAccount, setPasswordAccount] = useState<Account | null>(null);
+  const [passwordInput, setPasswordInput] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (getTheme() === "dark") document.documentElement.classList.add("dark");
@@ -55,10 +61,28 @@ export default function LoginPage({
     setTheme(next);
   }
 
-  async function handleSignIn(account: Account) {
-    setSelectedId(account.id);
+  function handleAccountClick(account: Account) {
+    setPasswordAccount(account);
+    setPasswordInput("");
+    setPasswordError("");
+    setShowPassword(false);
+    setTimeout(() => passwordRef.current?.focus(), 100);
+  }
+
+  async function handlePasswordSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!passwordAccount) return;
+
+    if (passwordInput !== passwordAccount.password) {
+      setPasswordError("Incorrect password. Please try again.");
+      return;
+    }
+
+    setSigningIn(true);
+    setSelectedId(passwordAccount.id);
+    setPasswordAccount(null);
     await new Promise((r) => setTimeout(r, 300));
-    loginAs(account);
+    loginAs(passwordAccount);
     setExiting(true);
     await new Promise((r) => setTimeout(r, 350));
     onLogin();
@@ -153,7 +177,7 @@ export default function LoginPage({
                 return (
                   <button
                     key={account.id}
-                    onClick={() => handleSignIn(account)}
+                    onClick={() => handleAccountClick(account)}
                     disabled={selectedId !== null}
                     className={cn(
                       "w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 text-left group",
@@ -197,6 +221,80 @@ export default function LoginPage({
           <div className="h-px flex-1 login-divider" />
         </div>
       </div>
+
+      {passwordAccount && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="absolute inset-0 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200"
+            onClick={() => setPasswordAccount(null)}
+          />
+          <div className="relative w-full max-w-sm mx-4 animate-in zoom-in-95 fade-in duration-200">
+            <div className="login-card login-card-visible !relative !transform-none">
+              <div className="login-shimmer" />
+              <div className="login-border-glow" />
+              <form onSubmit={handlePasswordSubmit} className="space-y-5">
+                <div className="flex flex-col items-center gap-3">
+                  <div className={cn(
+                    "h-14 w-14 rounded-full bg-gradient-to-br flex items-center justify-center text-white font-bold text-lg shadow-md",
+                    AVATAR_COLORS[(accounts.findIndex((a) => a.id === passwordAccount.id)) % AVATAR_COLORS.length],
+                  )}>
+                    {passwordAccount.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className="text-center">
+                    <p className="font-semibold">{passwordAccount.name}</p>
+                    <p className="text-xs login-subtext capitalize">{passwordAccount.role}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-medium login-subtext flex items-center gap-1.5">
+                    <Lock className="h-3 w-3" />
+                    Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      ref={passwordRef}
+                      type={showPassword ? "text" : "password"}
+                      value={passwordInput}
+                      onChange={(e) => { setPasswordInput(e.target.value); setPasswordError(""); }}
+                      placeholder="Enter your password"
+                      className="w-full h-10 px-3 pr-10 rounded-xl text-sm bg-foreground/[0.04] border border-foreground/10 focus:border-primary/40 focus:ring-2 focus:ring-primary/20 outline-none transition-all placeholder:text-foreground/30"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-foreground/30 hover:text-foreground/60 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                  {passwordError && (
+                    <p className="text-xs text-red-500 animate-in fade-in slide-in-from-top-1 duration-200">{passwordError}</p>
+                  )}
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPasswordAccount(null)}
+                    className="flex-1 h-10 rounded-xl text-sm font-medium text-foreground/60 hover:bg-foreground/[0.05] transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={!passwordInput || signingIn}
+                    className="flex-1 h-10 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {signingIn ? <Loader2 className="h-4 w-4 animate-spin" /> : "Sign In"}
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

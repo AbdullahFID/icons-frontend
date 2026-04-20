@@ -46,11 +46,15 @@ export default function Dashboard() {
 
   const [addOpen, setAddOpen] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newUsername, setNewUsername] = useState("");
+  const [newPassword, setNewPassword] = useState("password123");
   const [newRole, setNewRole] = useState<"admin" | "manager">("manager");
   const [addingAccount, setAddingAccount] = useState(false);
 
   const [editAccount, setEditAccount] = useState<Account | null>(null);
   const [editName, setEditName] = useState("");
+  const [editUsername, setEditUsername] = useState("");
+  const [editPassword, setEditPassword] = useState("");
   const [editRole, setEditRole] = useState<"admin" | "manager">("manager");
 
   const [deleteAccount, setDeleteAccount] = useState<Account | null>(null);
@@ -95,13 +99,15 @@ export default function Dashboard() {
 
   async function handleAddAccount(e: React.FormEvent) {
     e.preventDefault();
-    if (!newName.trim()) return;
+    if (!newName.trim() || !newUsername.trim() || !newPassword) return;
     setAddingAccount(true);
-    const created = await dbAddAccount(newName.trim(), newRole);
+    const created = await dbAddAccount(newName.trim(), newUsername.trim(), newPassword, newRole);
     const opId = addOperation("Add Account", `${created.name} (${created.role})`, performer);
     resolveOperation(opId, "success");
     await loadAccounts();
     setNewName("");
+    setNewUsername("");
+    setNewPassword("password123");
     setNewRole("manager");
     setAddingAccount(false);
     setAddOpen(false);
@@ -140,12 +146,14 @@ export default function Dashboard() {
     }
     setEditAccount(account);
     setEditName(account.name);
+    setEditUsername(account.username);
+    setEditPassword(account.password);
     setEditRole(account.role);
   }
 
   async function handleEditAccount(e: React.FormEvent) {
     e.preventDefault();
-    if (!editAccount || !editName.trim()) return;
+    if (!editAccount || !editName.trim() || !editUsername.trim() || !editPassword) return;
     if (editAccount.role === "admin" && editRole === "manager") {
       const adminCount = accounts.filter((a) => a.role === "admin").length;
       if (adminCount <= 1) {
@@ -154,7 +162,7 @@ export default function Dashboard() {
       }
     }
     const opId = addOperation("Edit Account", `${editAccount.name} → ${editName.trim()} (${editRole})`, performer);
-    await dbUpdateAccount(editAccount.id, editName.trim(), editRole);
+    await dbUpdateAccount(editAccount.id, editName.trim(), editUsername.trim(), editPassword, editRole);
     resolveOperation(opId, "success");
     setEditAccount(null);
     await loadAccounts();
@@ -383,6 +391,27 @@ export default function Dashboard() {
               />
             </div>
             <div className="space-y-2">
+              <label className="text-sm font-medium">Username</label>
+              <Input
+                value={newUsername}
+                onChange={(e) => setNewUsername(e.target.value)}
+                placeholder="e.g., sarah"
+                className="rounded-xl"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Password</label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="password123"
+                className="rounded-xl"
+                required
+              />
+            </div>
+            <div className="space-y-2">
               <label className="text-sm font-medium">Role</label>
               <div className="flex gap-2">
                 <button
@@ -423,7 +452,7 @@ export default function Dashboard() {
               </button>
               <button
                 type="submit"
-                disabled={!newName.trim() || addingAccount}
+                disabled={!newName.trim() || !newUsername.trim() || !newPassword || addingAccount}
                 className="px-4 py-2 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
                 {addingAccount ? "Adding..." : "Add Account"}
@@ -449,6 +478,25 @@ export default function Dashboard() {
                 className="rounded-xl"
                 required
                 autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Username</label>
+              <Input
+                value={editUsername}
+                onChange={(e) => setEditUsername(e.target.value)}
+                className="rounded-xl"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Password</label>
+              <Input
+                type="password"
+                value={editPassword}
+                onChange={(e) => setEditPassword(e.target.value)}
+                className="rounded-xl"
+                required
               />
             </div>
             <div className="space-y-2">
@@ -495,7 +543,7 @@ export default function Dashboard() {
               </button>
               <button
                 type="submit"
-                disabled={!editName.trim()}
+                disabled={!editName.trim() || !editUsername.trim() || !editPassword}
                 className="px-4 py-2 rounded-xl text-sm font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
               >
                 Save Changes

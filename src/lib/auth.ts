@@ -23,18 +23,11 @@ export function getCurrentUser(): Account | null {
 
 export function loginAs(account: Account): void {
   try {
+    const { password: _, ...safe } = account;
     localStorage.setItem(AUTH_KEY, "true");
-    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(account));
+    localStorage.setItem(AUTH_USER_KEY, JSON.stringify(safe));
   } catch {}
   window.dispatchEvent(new CustomEvent(AUTH_EVENT, { detail: true }));
-}
-
-export function login(username: string, password: string): boolean {
-  if (username === "admin" && password === "password123") {
-    loginAs({ id: 0, name: "Admin", role: "admin" });
-    return true;
-  }
-  return false;
 }
 
 export function logout(): void {
